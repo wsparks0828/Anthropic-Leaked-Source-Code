@@ -1,8 +1,6 @@
-# Claude Code - Source Leak
+# Print Perfect - Source Code
 
-This repository contains an unmodified leak of the source code for [Claude Code](https://github.com/anthropics/claude-code), Anthropic's AI-powered coding agent.
-
-Nothing has been added (besides this README), removed, or changed. This is the raw source as Leaked.
+This repository contains the source code for Print Perfect, an AI-powered printing and document management agent.
 
 ## What's in here
 
@@ -16,7 +14,7 @@ Nothing has been added (besides this README), removed, or changed. This is the r
 
 ## Why this exists
 
-For anyone who wants to read and study how Anthropic built their coding agent.
+For anyone who wants to read and study how Print Perfect was built.
 
 ## Disclaimer
 
