@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  print-perfect:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: print-perfect:latest
+    container_name: print-perfect-agent
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+    restart: unless-stopped
+    volumes:
+      - ./data:/app/data
+    networks:
+      - print-perfect-network
+
+networks:
+  print-perfect-network:
+    driver: bridge
