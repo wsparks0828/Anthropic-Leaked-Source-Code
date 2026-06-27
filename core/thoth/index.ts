@@ -43,3 +43,16 @@ export {
   type LessonLine,
   type HealingActionLine,
 } from './jsonl_logger.js'
+
+// Host integration shim (wires guards into the live CLI; observe-by-default, fail-open).
+// Call setHostGuardMode('enforce') to let quarantine actually block (e.g. dangerous tools).
+export {
+  guardHostApiOutput,
+  guardHostToolExecution,
+  guardHostMessage,
+  guardHostCliConfig,
+  setHostGuardMode,
+  getHostGuardMode,
+  type HostGuardMode,
+  type HostGuardDecision,
+} from './host_integration.js'

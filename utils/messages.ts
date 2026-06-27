@@ -23,6 +23,7 @@ import { sanitizeToolNameForAnalytics } from 'src/services/analytics/metadata.js
 import type { AgentId } from 'src/types/ids.js'
 import { companionIntroText } from '../buddy/prompt.js'
 import { NO_CONTENT_MESSAGE } from '../constants/messages.js'
+import { guardHostMessage } from '../core/thoth/host_integration.js'
 import { OUTPUT_STYLE_CONFIG } from '../constants/outputStyles.js'
 import { isAutoMemoryEnabled } from '../memdir/paths.js'
 import {
@@ -499,6 +500,12 @@ export function createUserMessage({
   // Provenance of this message. undefined = human (keyboard).
   origin?: MessageOrigin
 }): UserMessage {
+  // Guardrail observation (observe-only, fail-open, never blocks). Only genuine
+  // string user text is scored; meta/virtual/structured (tool-result) content is skipped.
+  if (typeof content === 'string' && content.length > 0 && !isMeta && !isVirtual) {
+    guardHostMessage('', content)
+  }
+
   const m: UserMessage = {
     type: 'user',
     message: {

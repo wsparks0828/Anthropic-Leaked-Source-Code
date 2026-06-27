@@ -37,6 +37,7 @@ import {
 } from '../../Tool.js'
 import type { BashToolInput } from '../../tools/BashTool/BashTool.js'
 import { startSpeculativeClassifierCheck } from '../../tools/BashTool/bashPermissions.js'
+import { guardHostToolExecution } from '../../core/thoth/host_integration.js'
 import { BASH_TOOL_NAME } from '../../tools/BashTool/toolName.js'
 import { FILE_EDIT_TOOL_NAME } from '../../tools/FileEditTool/constants.js'
 import { FILE_READ_TOOL_NAME } from '../../tools/FileReadTool/prompt.js'
@@ -411,6 +412,28 @@ export async function* runToolUse(
   }
 
   const toolInput = toolUse.input as { [key: string]: string }
+
+  // Guardrail pre-execution gate. Fail-open and observe-by-default: only blocks when
+  // the host-guard mode is 'enforce' AND the guard quarantines (e.g. dangerous tool).
+  const guardrail = guardHostToolExecution(toolName, toolInput)
+  if (!guardrail.allow) {
+    yield {
+      message: createUserMessage({
+        content: [
+          {
+            type: 'tool_result',
+            content: `<tool_use_error>Blocked by guardrail: ${guardrail.reason ?? 'policy violation'}</tool_use_error>`,
+            is_error: true,
+            tool_use_id: toolUse.id,
+          },
+        ],
+        toolUseResult: `Blocked by guardrail: ${guardrail.reason ?? 'policy violation'}`,
+        sourceToolAssistantUUID: assistantMessage.uuid,
+      }),
+    }
+    return
+  }
+
   try {
     if (toolUseContext.abortController.signal.aborted) {
       logEvent('tengu_tool_use_cancelled', {

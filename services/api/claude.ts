@@ -56,6 +56,7 @@ import {
   toolToAPISchema,
 } from '../../utils/api.js'
 import { getOauthAccountInfo } from '../../utils/auth.js'
+import { guardHostApiOutput } from '../../core/thoth/host_integration.js'
 import {
   getBedrockExtraBodyParamsBetas,
   getMergedBetas,
@@ -746,6 +747,19 @@ export async function queryModelWithoutStreaming({
     }
     throw new Error('No assistant message found')
   }
+
+  // Guardrail observation of finalized API output (observe-only, fail-open). Text
+  // extraction is wrapped so it can never interfere with returning the response.
+  try {
+    const text = (assistantMessage.message.content as Array<{ type: string; text?: string }>)
+      .filter(b => b.type === 'text')
+      .map(b => b.text ?? '')
+      .join('\n')
+    guardHostApiOutput(text)
+  } catch {
+    /* never break the API path on observation */
+  }
+
   return assistantMessage
 }
 

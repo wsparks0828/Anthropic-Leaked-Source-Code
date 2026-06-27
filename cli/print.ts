@@ -322,6 +322,7 @@ import {
 import { asSessionId } from 'src/types/ids.js'
 import { jsonStringify } from '../utils/slowOperations.js'
 import { skillChangeDetector } from '../utils/skills/skillChangeDetector.js'
+import { guardHostCliConfig } from '../core/thoth/host_integration.js'
 import { getCommands, clearCommandsCache } from '../commands.js'
 import {
   isBareMode,
@@ -491,6 +492,10 @@ export async function runHeadless(
     setSDKStatus?: (status: SDKStatus) => void
   },
 ): Promise<void> {
+  // Guardrail CLI-config check at boot (observe-only, fail-open). Flags config-level
+  // bypass attempts (e.g. skip_safety_checks) without blocking normal startup.
+  guardHostCliConfig(options)
+
   if (
     process.env.USER_TYPE === 'ant' &&
     isEnvTruthy(process.env.CLAUDE_CODE_EXIT_AFTER_FIRST_RENDER)
