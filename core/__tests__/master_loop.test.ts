@@ -15,6 +15,47 @@ beforeEach(() => {
   globalLineageAuditor.reset()
 })
 
+// Ambiguous-composite content (mid-band 0.48–0.62) so the heuristic short-circuit
+// falls through to the injected LLM. Tier-2 ensures it is reasoned (not rejected).
+const WEAK = 'A short but ingestible sentence about a topic with a little detail included here now.'
+
+describe('THOTH Master Loop — reasoning token optimization', () => {
+  it('default loop (no LLM injected) keeps REASONING zero-token', () => {
+    const loop = new MasterLoop()
+    const r = loop.runCycle({content: GOOD, sourceId: 's_zt', sourceTier: 1, intent: 'x', query: 'transformer'})
+    expect(r.reasoningSource).toBe('none')
+    expect(r.reasoningTokens).toBe(0)
+    expect(loop.getReasoningStats()).toBeNull()
+  })
+
+  it('decisive content heuristic-short-circuits — injected LLM is never called', () => {
+    let llmCalls = 0
+    const loop = new MasterLoop({reasoningLlm: () => { llmCalls++; return {text: 'r', tokensUsed: 500} }})
+    const r = loop.runCycle({content: GOOD, sourceId: 's_dec', sourceTier: 1, intent: 'x', query: 'transformer'})
+    expect(r.reasoningSource).toBe('heuristic')
+    expect(r.reasoningTokens).toBe(0)
+    expect(llmCalls).toBe(0)
+  })
+
+  it('ambiguous content reaches the LLM once, then caches (zero tokens on repeat)', () => {
+    let llmCalls = 0
+    const loop = new MasterLoop({reasoningLlm: () => { llmCalls++; return {text: 'reasoned', tokensUsed: 500} }})
+    const r1 = loop.runCycle({content: WEAK, sourceId: 's_amb1', sourceTier: 2})
+    expect(r1.reasoningSource).toBe('llm')
+    expect(r1.reasoningTokens).toBe(500)
+    expect(llmCalls).toBe(1)
+
+    const r2 = loop.runCycle({content: WEAK, sourceId: 's_amb2', sourceTier: 2})
+    expect(r2.reasoningSource).toBe('cache') // identical content → cache hit
+    expect(r2.reasoningTokens).toBe(0)
+    expect(llmCalls).toBe(1) // still 1: the model was not called again
+
+    const stats = loop.getReasoningStats()
+    expect(stats?.llmCalls).toBe(1)
+    expect(stats?.cacheHits).toBe(1)
+  })
+})
+
 describe('THOTH Master Loop', () => {
   it('I1: a pre-ingest reject never reaches REASONING', () => {
     const loop = new MasterLoop()

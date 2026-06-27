@@ -26,6 +26,10 @@ import {AuditLoop} from '../loops/audit_loop.js'
 import {globalLineageAuditor} from '../lineage_auditor.js'
 import {type GuardrailProposal} from '../guardrail_learning_bridge.js'
 import {globalJsonlLogger, type JsonlLogger} from './jsonl_logger.js'
+import {TokenOptimizer, TokenBudget, type LlmResult, type ModelTier} from './token_optimization.js'
+
+/** Injected reasoning model. Returns text + tokens used. Omit for zero-token operation. */
+export type ReasoningLlmFn = (args: {tier: ModelTier; system: string; user: string}) => LlmResult
 
 export type MasterState =
   | 'IDLE'
@@ -70,6 +74,9 @@ export interface CycleResult {
   chainIntact: boolean
   accepted: boolean
   lineageRecordId: string
+  /** How REASONING was resolved. 'none' = pure heuristic, no optimizer (zero tokens). */
+  reasoningSource: 'none' | 'heuristic' | 'cache' | 'llm' | 'budget_blocked'
+  reasoningTokens: number
 }
 
 export class MasterLoop {
@@ -80,6 +87,8 @@ export class MasterLoop {
   private readonly control: ControlLoop
   private readonly audit: AuditLoop
   private readonly logger?: Pick<JsonlLogger, 'logHealingAction' | 'logLesson' | 'logRubricScore'>
+  /** Present only when a reasoning LLM is injected; otherwise REASONING stays zero-token. */
+  private readonly optimizer?: TokenOptimizer
   private drainArchive = 0
 
   constructor(opts?: {
@@ -87,6 +96,10 @@ export class MasterLoop {
     lifecycle?: LifecycleEnforcer
     control?: ControlLoop
     logger?: Pick<JsonlLogger, 'logHealingAction' | 'logLesson' | 'logRubricScore'>
+    /** Inject a reasoning model to enable LLM-backed REASONING. Omit for zero-token operation. */
+    reasoningLlm?: ReasoningLlmFn
+    /** Token budget for the reasoning optimizer (only used when reasoningLlm is given). */
+    reasoningBudget?: TokenBudget
   }) {
     // Forward the logger into the gate so rubric_scores are emitted on the default
     // path (unless an explicit gate is supplied, which takes precedence).
@@ -96,6 +109,11 @@ export class MasterLoop {
     this.control = opts?.control ?? new ControlLoop()
     this.audit = new AuditLoop()
     this.logger = opts?.logger
+    // Only build an optimizer when a reasoning model is injected; otherwise REASONING
+    // stays purely heuristic and spends zero tokens.
+    this.optimizer = opts?.reasoningLlm
+      ? new TokenOptimizer(opts.reasoningLlm, opts.reasoningBudget ?? new TokenBudget())
+      : undefined
   }
 
   getState(): MasterState {
@@ -123,12 +141,35 @@ export class MasterLoop {
     let lifecycleBlocked: boolean | undefined
     let healingProposed = false
     let healingAccepted = false
+    let reasoningSource: CycleResult['reasoningSource'] = 'none'
+    let reasoningTokens = 0
 
     // I1: reject ⇒ skip REASONING, go straight to drainage.
     if (pre.decision !== 'reject') {
       // REASONING (corpus-centric: the accepted content is the candidate under scrutiny)
       go('REASONING')
       reasoned = true
+
+      // Optional LLM-backed reasoning, fully token-optimized. With no injected model
+      // the optimizer is absent and this stays pure-heuristic / zero-token ('none').
+      // When present: a heuristic short-circuit answers confidently-decidable content
+      // with NO LLM call; only the ambiguous mid-band can reach the (cached, routed) model.
+      if (this.optimizer) {
+        const outcome = this.optimizer.call<string>({
+          taskHint: 'reason about content quality and improvement strategy',
+          system: 'THOTH reasoner',
+          user: input.content,
+          cachePrefix: input.query,
+          heuristic: () => {
+            // Confident when pre-ingest composite is decisively high or low.
+            if (pre.composite >= 0.62) return `heuristic:accept(${pre.composite.toFixed(2)})`
+            if (pre.composite <= 0.48) return `heuristic:reject(${pre.composite.toFixed(2)})`
+            return null // ambiguous → allow the LLM (if injected) to reason
+          },
+        })
+        reasoningSource = outcome.source
+        reasoningTokens = outcome.tokensUsed
+      }
 
       // VERIFYING (9-step lifecycle)
       go('VERIFYING')
@@ -221,7 +262,14 @@ export class MasterLoop {
       chainIntact,
       accepted,
       lineageRecordId: rec.chainHash,
+      reasoningSource,
+      reasoningTokens,
     }
+  }
+
+  /** Reasoning optimizer stats (cache/heuristic avoidance, tokens). Null if no LLM injected. */
+  getReasoningStats() {
+    return this.optimizer ? this.optimizer.getStats() : null
   }
 
   /** I3: each state in the path must not precede its canonical predecessor. */
