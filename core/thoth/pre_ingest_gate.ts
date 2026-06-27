@@ -21,6 +21,7 @@
 import {globalRubricScorer} from '../rubric_scorer.js'
 import {globalTruthGate} from '../truth_gates.js'
 import {globalLineageAuditor} from '../lineage_auditor.js'
+import type {RubricScoreLine, LessonLine} from './jsonl_logger.js'
 
 /** 1 = highest-trust curated source … 4 = unknown/untrusted scrape. */
 export type SourceTier = 1 | 2 | 3 | 4
@@ -80,8 +81,17 @@ export interface PreIngestVerdict {
 export class PreIngestGate {
   private readonly cfg: PreIngestConfig
 
-  constructor(cfg: Partial<PreIngestConfig> = {}) {
+  private readonly logger?: {
+    logRubricScore: (l: RubricScoreLine) => void
+    logLesson: (l: LessonLine) => void
+  }
+
+  constructor(
+    cfg: Partial<PreIngestConfig> = {},
+    logger?: {logRubricScore: (l: RubricScoreLine) => void; logLesson: (l: LessonLine) => void},
+  ) {
     this.cfg = {...DEFAULT_PRE_INGEST_CONFIG, ...cfg}
+    this.logger = logger
   }
 
   evaluate(
@@ -176,6 +186,18 @@ export class PreIngestGate {
       evidence: rubric.evidence.slice(0, 3).map((e) => `${e.dimension}:${e.signal}`),
       proposedAction,
       lineageRecordId: rec.chainHash,
+    }
+
+    // Optional durable JSONL trail (off unless a logger is injected → tests stay hermetic).
+    if (this.logger) {
+      this.logger.logRubricScore({
+        sourceId: meta.sourceId,
+        composite,
+        dimensions: d,
+        decision,
+        lineageRecordId: rec.chainHash,
+      })
+      this.logger.logLesson(lesson)
     }
 
     return {decision, composite, density, dimensionScores: d, truthFlag, sourceTier, priority, reasons, lesson}
