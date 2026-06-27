@@ -289,7 +289,7 @@ export function guardMessageMutation(oldMsg: any, newMsg: any): GuardrailGateRes
     // Generate signal for memory wiring
     const signal = globalGuardrailLearningBridge.processVerification(
       rubricScore,
-      { verdict: 'uncertain', confidence: 0.5, evidenceFor: [], evidenceAgainst: [], reasoning: '' },
+      { _version: '1.0', verdict: 'uncertain', confidence: 0.5, evidenceFor: [], evidenceAgainst: [], reasoning: '' },
       {
         source: 'message_creation',
         summary: newContent.slice(0, 100),

@@ -29,8 +29,8 @@ class GracefulShutdownManager {
     // Register process termination handlers
     process.on('SIGTERM', () => this.handleShutdown('SIGTERM'))
     process.on('SIGINT', () => this.handleShutdown('SIGINT'))
-    process.on('uncaughtException', (err) => this.handleCrash('uncaughtException', err))
-    process.on('unhandledRejection', (reason) => this.handleCrash('unhandledRejection', reason))
+    process.on('uncaughtException', (err: Error) => this.handleCrash('uncaughtException', err))
+    process.on('unhandledRejection', (reason: unknown) => this.handleCrash('unhandledRejection', reason))
   }
 
   /**
@@ -144,7 +144,7 @@ class GracefulShutdownManager {
    * Flush lineage chain to persistent storage
    */
   private async flushLineageToDisk(): Promise<void> {
-    const timeoutPromise = new Promise((_, reject) =>
+    const timeoutPromise = new Promise<void>((_, reject) =>
       setTimeout(() => reject(new Error('Lineage flush timeout')), this.shutdownTimeout),
     )
 

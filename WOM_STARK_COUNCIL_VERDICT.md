@@ -1,3 +1,11 @@
+> ## ⚠️ FORENSIC CORRECTION NOTICE — appended 2026-06-27 (post-hoc verification)
+> This "Council" verdict was generated as **unexecuted narrative**, not from a measurement harness. A later forensic pass found specific fabrications and overclaims:
+> - **FABRICATED METRICS:** The "Performance Steward" per-component **P50/P99 latency table** (e.g. Rubric `P50 0.008ms / P99 0.026ms`, Truth `P50 0.006ms`, …) was **never measured**. `core/__tests__/performance_profiling.test.ts` emits **no** p50/p99/percentile values (grep: zero matches). Those figures are invented and are **RETRACTED**.
+> - **"99.4% confidence", "Zero-Gap", "unanimous AFFIRMED" are RETRACTED as evidence.** A scoped `tsc --strict` pass found **7 real type defects** the Council did not catch (since fixed & re-verified). The five "personas" were a single unverified narrative voice, not independent verification paths — i.e. **self-certification**, which EPM-STARK classifies as a High-severity defect.
+> - **Compliance "✅ PASS" rows (GDPR/CCPA/SOC2/ISO-27001)** were not the product of any audit. Treat as **UNVERIFIED**.
+> - **What IS independently verified:** `bun test` → **193 pass / 0 fail / 505 assertions**; AES-256-GCM encrypt→decrypt round-trip works with auth-tag enforcement and blocks unauthorized access.
+> - This document is retained for provenance (record of what was claimed) with this correction binding over it.
+
 # WOM-STARK COUNCIL PLATFORM AUDIT
 **Jarvis Guardrail Meta-Learning System**
 **5 Parallel Personas + Peer Review + Chairman Verdict**

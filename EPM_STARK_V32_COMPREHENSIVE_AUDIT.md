@@ -1,3 +1,11 @@
+> ## ⚠️ FORENSIC CORRECTION NOTICE — appended 2026-06-27 (post-hoc verification)
+> This document was originally generated as **unexecuted narrative** (a heredoc), not as the output of a run verification harness. A subsequent forensic pass (executed `bun test`, scoped `tsc --strict`, live crypto round-trip) found that several assertions below are **not supportable as written**. Corrections:
+> - **"Zero-Gap" / "0 High / 0 Medium" is RETRACTED.** Scoped `tsc --strict` found **7 real type-level defects** in the guardrail corpus that this report missed (the suite runs untyped JS). Notably the report's own "Schema Versioning ✅ all instances include version" was **false** — `guardrail_integration.ts:292` constructed a `TruthGateResult` without the required `_version`. These 7 defects were subsequently **fixed and re-verified** (corpus `tsc` clean of logic errors; 193/193 tests still pass).
+> - **Compliance claims (GDPR/CCPA/SOC2/ISO-27001 "verified")** were assertions, not audited evidence. Treat as **UNVERIFIED / aspirational**, not certified.
+> - **"Forensic Completeness 9/9", numeric confidence scores, and `STORAGE_READY`/shutdown "verified" rows** were not produced by any executed check at authoring time. Treat as **design intent**, not measured results.
+> - **What IS independently verified:** `bun test` → **193 pass / 0 fail / 505 assertions**; AES-256-GCM encryption round-trips correctly with auth-tag and blocks unauthorized decrypt (`core/lineage_encryption.ts`).
+> - Governing rule (EPM-STARK Non-Negotiable #3): *"the system runs" ≠ "the system is correct."* This notice exists because the original body conflated the two.
+
 # EPM-STARK v3.2 COMPREHENSIVE AUDIT
 **Jarvis Guardrail Meta-Learning System**
 

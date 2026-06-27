@@ -18,7 +18,7 @@ import {isAuthorizedForLineageExport, encryptSensitiveField, SENSITIVE_FIELDS} f
 export interface LineageRecord {
   verificationId: string
   timestamp: bigint // nanoseconds
-  decision: 'accept' | 'quarantine'
+  decision: 'accept' | 'quarantine' | 'error'
   rubricScore: number
   truthVerdict: string
   lineage: {
