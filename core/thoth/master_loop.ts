@@ -24,7 +24,7 @@ import {RefinementLoop} from '../loops/refinement_loop.js'
 import {ControlLoop} from '../loops/control_loop.js'
 import {globalLineageAuditor} from '../lineage_auditor.js'
 import {type GuardrailProposal} from '../guardrail_learning_bridge.js'
-import {type JsonlLogger} from './jsonl_logger.js'
+import {globalJsonlLogger, type JsonlLogger} from './jsonl_logger.js'
 
 export type MasterState =
   | 'IDLE'
@@ -76,16 +76,18 @@ export class MasterLoop {
   private readonly lifecycle: LifecycleEnforcer
   private readonly refinement: RefinementLoop
   private readonly control: ControlLoop
-  private readonly logger?: Pick<JsonlLogger, 'logHealingAction' | 'logLesson'>
+  private readonly logger?: Pick<JsonlLogger, 'logHealingAction' | 'logLesson' | 'logRubricScore'>
   private drainArchive = 0
 
   constructor(opts?: {
     gate?: PreIngestGate
     lifecycle?: LifecycleEnforcer
     control?: ControlLoop
-    logger?: Pick<JsonlLogger, 'logHealingAction' | 'logLesson'>
+    logger?: Pick<JsonlLogger, 'logHealingAction' | 'logLesson' | 'logRubricScore'>
   }) {
-    this.gate = opts?.gate ?? new PreIngestGate()
+    // Forward the logger into the gate so rubric_scores are emitted on the default
+    // path (unless an explicit gate is supplied, which takes precedence).
+    this.gate = opts?.gate ?? new PreIngestGate({}, opts?.logger)
     this.lifecycle = opts?.lifecycle ?? new LifecycleEnforcer()
     this.refinement = new RefinementLoop()
     this.control = opts?.control ?? new ControlLoop()
@@ -160,12 +162,12 @@ export class MasterLoop {
       this.control.assertInvariant()
     }
 
-    // DRAINAGE — archive low-value, log lesson
+    // DRAINAGE — archive low-value cycles. (Lesson logging is owned by the gate,
+    // which already emitted this cycle's lesson; re-logging here would duplicate it.)
     go('DRAINAGE')
     if (pre.decision === 'reject' || lifecycleDecision === 'quarantine') {
       this.drainArchive++
     }
-    this.logger?.logLesson(pre.lesson)
 
     // WRITING_STATE — persist a cycle summary to immutable lineage (I2)
     go('WRITING_STATE')
@@ -237,4 +239,8 @@ export class MasterLoop {
   }
 }
 
-export const globalMasterLoop = new MasterLoop()
+/**
+ * Default global master loop — wired to the durable global JSONL logger so the
+ * default path emits rubric_scores / lessons_learned / healing_actions trails.
+ */
+export const globalMasterLoop = new MasterLoop({logger: globalJsonlLogger})

@@ -76,14 +76,18 @@ describe('THOTH Master Loop', () => {
   it('logger wiring: healing actions + lessons are recorded when provided', () => {
     const healing: any[] = []
     const lessons: any[] = []
+    const scores: any[] = []
     const logger = {
       logHealingAction: (l: any) => healing.push(l),
       logLesson: (l: any) => lessons.push(l),
+      logRubricScore: (l: any) => scores.push(l),
     }
     const loop = new MasterLoop({logger})
     // A weak-but-not-rejected input drives REFLECT_HEAL.
     loop.runCycle({content: 'A short but ingestible sentence about a topic with a little detail here.', sourceId: 's_heal', sourceTier: 2})
-    expect(lessons.length).toBeGreaterThanOrEqual(1)
+    // No-duplication: exactly one lesson + one rubric_score per cycle (gate owns both).
+    expect(lessons.length).toBe(1)
+    expect(scores.length).toBe(1)
     // healing only logged if reasoning happened and was sub-floor; assert structure if present
     for (const h of healing) {
       expect(h).toHaveProperty('target')
