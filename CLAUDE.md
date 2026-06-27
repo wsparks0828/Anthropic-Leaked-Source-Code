@@ -1,8 +1,8 @@
-# THOTH Corpus Architecture & Integration Guide
+# JTC — THOTH Corpus Architecture & Integration Guide
 
 ## Overview
 
-THOTH is a guardrail/corpus system for adversarial reasoning and lineage verification in TypeScript. It implements a fail-open, observe-by-default architecture with near-zero-token LLM orchestration, immutable audit trails, and 9-step lifecycle enforcement.
+JTC (THOTH) is a guardrail/corpus system for adversarial reasoning and lineage verification in TypeScript. It implements a fail-open, observe-by-default architecture with near-zero-token LLM orchestration, immutable audit trails, and 9-step lifecycle enforcement.
 
 **Core Invariants:**
 - **I1 (Fail-Closed Ingestion):** PRE_INGEST reject never reaches REASONING; routes straight to DRAINAGE
