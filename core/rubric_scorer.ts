@@ -28,6 +28,11 @@ export type RubricDimension =
 
 export interface RubricScore {
   /**
+   * Schema version for backward compatibility.
+   */
+  _version: '1.0'
+
+  /**
    * Composite score (0–1). Calculated as weighted average of dimensions.
    * Default weights: all equal. Can be overridden per use case.
    */
@@ -118,6 +123,7 @@ export class RubricScorer {
     const confidence = this.computeConfidence(scores, evidence)
 
     const rubricScore: RubricScore = {
+      _version: '1.0',
       overall: Math.round(overall * 100) / 100,
       dimensions: Object.fromEntries(
         Object.entries(dimensions).map(([k, v]) => [k, Math.round(v * 100) / 100]),

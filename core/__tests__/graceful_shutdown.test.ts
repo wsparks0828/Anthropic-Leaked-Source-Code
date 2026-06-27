@@ -15,6 +15,7 @@ import {globalShutdownManager, initializeGracefulShutdown} from '../guardrail_sh
 import {globalLineageAuditor} from '../lineage_auditor.js'
 import {globalHealthMonitor} from '../guardrail_health.js'
 import {globalAlertManager} from '../guardrail_alerts.js'
+import {registerLineageExportToken, initializeLineageEncryption} from '../lineage_encryption.js'
 
 // Mock storage backend for testing
 class MockStorageBackend {
@@ -65,13 +66,17 @@ class MockStorageBackend {
 
 describe('Graceful Shutdown Handler', () => {
   let mockStorage: MockStorageBackend
+  let authToken: string
 
   beforeEach(() => {
+    initializeLineageEncryption('test-key-shutdown')
     globalLineageAuditor.reset()
     globalHealthMonitor.reset()
     globalAlertManager.reset()
     mockStorage = new MockStorageBackend()
     initializeGracefulShutdown(mockStorage)
+    authToken = 'test-auth-token-shutdown'
+    registerLineageExportToken(authToken)
   })
 
   /**
@@ -182,7 +187,7 @@ describe('Graceful Shutdown Handler', () => {
       },
     })
 
-    const exported = globalLineageAuditor.exportLineage(10, 'json-ld')
+    const exported = globalLineageAuditor.exportLineage(10, 'json-ld', authToken)
     expect(exported.length).toBeGreaterThan(0)
     if (exported.length > 0) {
       expect(exported[0]).toHaveProperty('verificationId')
@@ -312,7 +317,7 @@ describe('Graceful Shutdown Handler', () => {
       })
     }
 
-    const records = globalLineageAuditor.exportLineage(100, 'json-ld')
+    const records = globalLineageAuditor.exportLineage(100, 'json-ld', authToken)
     expect(records.length).toBe(3)
 
     // Verify structure

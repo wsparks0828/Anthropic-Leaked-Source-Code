@@ -10,12 +10,17 @@
 
 import {describe, it, expect, beforeEach} from 'bun:test'
 import {LineageAuditor, verifyLineageChain, exportLineage, getLineageStats} from '../lineage_auditor.js'
+import {registerLineageExportToken, initializeLineageEncryption} from '../lineage_encryption.js'
 
 describe('Lineage Auditing', () => {
   let auditor: LineageAuditor
+  let authToken: string
 
   beforeEach(() => {
+    initializeLineageEncryption('test-key-lineage')
     auditor = new LineageAuditor()
+    authToken = 'test-auth-token-lineage'
+    registerLineageExportToken(authToken)
   })
 
   /**
@@ -214,7 +219,7 @@ describe('Lineage Auditing', () => {
       },
     })
 
-    const exported = auditor.exportLineage(10, 'json-ld')
+    const exported = auditor.exportLineage(10, 'json-ld', authToken)
 
     expect(exported.length).toBe(1)
     const record = exported[0] as any
@@ -245,7 +250,7 @@ describe('Lineage Auditing', () => {
       })
     }
 
-    const exported = auditor.exportLineage(5)
+    const exported = auditor.exportLineage(5, 'json-ld', authToken)
 
     expect(exported.length).toBe(5)
     expect(exported[0].verificationId).toBe('ver_016') // Last 5 records

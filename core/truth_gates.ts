@@ -22,6 +22,11 @@ export type FalseSeverity = 'critical' | 'high' | 'medium' | 'low'
 
 export interface TruthGateResult {
   /**
+   * Schema version for backward compatibility.
+   */
+  _version: '1.0'
+
+  /**
    * Verdict: true/false/uncertain.
    */
   verdict: TruthVerdict
@@ -112,6 +117,7 @@ export class TruthProver {
     const verdict: TruthVerdict = clamped > 0.65 ? 'true' : clamped > 0.35 ? 'uncertain' : 'false'
 
     return {
+      _version: '1.0',
       verdict,
       confidence: clamped,
       evidenceFor,
@@ -233,6 +239,7 @@ export class FalseProver {
     const verdict: TruthVerdict = clamped > 0.65 ? 'false' : clamped > 0.35 ? 'uncertain' : 'true'
 
     return {
+      _version: '1.0',
       verdict,
       confidence: clamped,
       severity: verdict === 'false' ? severity : undefined,
@@ -324,6 +331,7 @@ export class TruthGate {
     }
 
     return {
+      _version: '1.0',
       verdict,
       confidence: Math.round(confidence * 100) / 100,
       severity,

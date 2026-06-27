@@ -68,6 +68,21 @@ export function guardApiOutput(
   const verificationId = generateVerificationId()
 
   try {
+    // OUTPUT SIZE LIMIT CHECK: Prevent DoS via huge outputs
+    const MAX_OUTPUT_SIZE = 100_000 // 100KB limit
+    if (output.length > MAX_OUTPUT_SIZE) {
+      return {
+        decision: 'quarantine',
+        reason: 'rubric_threshold_failed', // Use existing reason type
+        verificationId,
+        quarantineDetails: {
+          rubricScore: 0,
+          truthVerdict: 'size_limit_exceeded',
+          residualRisk: 1.0,
+        },
+      }
+    }
+
     // Score output
     const rubricScore = globalRubricScorer.score(output, {
       query: context?.prompt,

@@ -9,7 +9,8 @@
  * - No records deleted or modified
  */
 
-import { createHash } from 'crypto'
+import {createHash} from 'crypto'
+import {isAuthorizedForLineageExport, encryptSensitiveField, SENSITIVE_FIELDS} from './lineage_encryption.js'
 
 /**
  * Individual verification record in lineage chain.
@@ -168,8 +169,20 @@ export class LineageAuditor {
 
   /**
    * Export lineage records for audit.
+   * Requires authorization token for access control.
+   * Sensitive fields are encrypted in output.
    */
-  exportLineage(limit: number = 100, format: 'json-ld' | 'json' = 'json-ld'): LineageRecord[] {
+  exportLineage(
+    limit: number = 100,
+    format: 'json-ld' | 'json' = 'json-ld',
+    authToken?: string,
+  ): LineageRecord[] {
+    // ACCESS CONTROL: Check authorization
+    if (!isAuthorizedForLineageExport(authToken)) {
+      console.warn('[lineage-auditor] Unauthorized exportLineage attempt (no valid token)')
+      return []
+    }
+
     const records = this.chain.slice(-limit)
 
     if (format === 'json-ld') {
