@@ -156,6 +156,28 @@ export interface GuardrailHealthStatus {
      * Verifier disagreement rate.
      */
     disagreementRate: number
+
+    /**
+     * autoDream self-improvement metrics.
+     */
+    autoDreamMetrics?: {
+      cyclesTriggered: number
+      signalsAccumulated: number
+      proposalsGenerated: number
+      proposalsApplied: number
+      improvementSuccessRate: number // 0-1
+      lastCycleTime?: bigint
+      nextCycleDueAt?: bigint
+    }
+
+    /**
+     * Cache performance metrics.
+     */
+    cacheMetrics?: {
+      rubricScorerCacheHits: number
+      rubricScorerCacheMisses: number
+      cacheUtilizationPercent: number
+    }
   }
 
   /**

@@ -297,28 +297,24 @@ describe('Performance Profiling', () => {
   })
 
   /**
-   * Test 14: Cache Effectiveness (memoization)
+   * Test 14: Cache Effectiveness (LRU memoization)
    */
-  it('should leverage memoization for repeated content', () => {
+  it('should leverage LRU cache for repeated content', () => {
     const output = 'Repeated test output for cache effectiveness measurement.'
 
     // First call (cache miss)
-    const time1 = measureTime(() => {
-      globalRubricScorer.score(output)
-    })
+    const score1 = globalRubricScorer.score(output)
 
-    // Second call (cache hit)
-    const time2 = measureTime(() => {
-      globalRubricScorer.score(output)
-    })
+    // Second call (cache hit) - should return identical object
+    const score2 = globalRubricScorer.score(output)
 
     console.log(`\n[Cache Effectiveness]`)
-    console.log(`  First call: ${time1.toFixed(3)}ms`)
-    console.log(`  Second call: ${time2.toFixed(3)}ms`)
-    console.log(`  Speedup: ${(time1 / Math.max(time2, 0.001)).toFixed(1)}x`)
+    console.log(`  Score 1: ${score1.overall}`)
+    console.log(`  Score 2: ${score2.overall}`)
 
-    // Second call should be significantly faster (cache hit)
-    expect(time2).toBeLessThan(time1)
+    // Cache should return identical results
+    expect(score1.overall).toBe(score2.overall)
+    expect(score1.timestamp).toBe(score2.timestamp) // Same timestamp = cached result
   })
 
   /**

@@ -14,7 +14,7 @@
  * Used by: Guardrail layer, truth gates, learning signals
  */
 
-import memoize from 'lodash-es/memoize.js'
+import {LRUCache} from './lru_cache.js'
 
 export type RubricDimension =
   | 'relevance'
@@ -80,8 +80,7 @@ export interface RubricScore {
  * **Caching**: Scores are memoized by content hash to avoid redundant scoring.
  */
 export class RubricScorer {
-  private cache: Map<string, RubricScore> = new Map()
-  private maxCacheSize = 500
+  private cache: LRUCache<string, RubricScore> = new LRUCache(10000) // LRU: max 10k entries
 
   /**
    * Score output across all 8 dimensions.
@@ -135,11 +134,7 @@ export class RubricScorer {
       timestamp: now,
     }
 
-    // Maintain cache size
-    if (this.cache.size >= this.maxCacheSize) {
-      const firstKey = this.cache.keys().next().value
-      this.cache.delete(firstKey)
-    }
+    // LRU cache handles size management automatically
     this.cache.set(hash, rubricScore)
 
     return rubricScore
