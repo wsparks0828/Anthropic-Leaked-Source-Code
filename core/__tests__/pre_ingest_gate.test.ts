@@ -6,8 +6,13 @@
  */
 
 import {describe, it, expect, beforeEach} from 'bun:test'
-import {PreIngestGate, type SourceTier} from '../thoth/pre_ingest_gate.js'
+import {PreIngestGate, computeInformativeness, type SourceTier} from '../thoth/pre_ingest_gate.js'
 import {globalLineageAuditor} from '../lineage_auditor.js'
+
+const WORTHLESS_DENSE =
+  'Basically this is just a thing about stuff and really it is very much the kind of thing that ' +
+  'things are, and honestly it is just kind of whatever you might think it is, more or less, in a ' +
+  'general sense you know, it really just depends and stuff like that.'
 
 const HIGH_SIGNAL =
   'Transformer attention computes scaled dot-product over query, key, and value matrices; ' +
@@ -85,6 +90,34 @@ describe('THOTH Pre-Ingest Gate', () => {
     const gate = new PreIngestGate()
     const v = gate.evaluate(HIGH_SIGNAL, {sourceId: 's_dim', sourceTier: 1, query: 'transformer attention'})
     expect(['relevance', 'coherence', 'factuality']).toContain(v.lesson.weakestDimension)
+  })
+
+  it('SIGNAL-QUALITY GAP: dense-but-worthless content is rejected on low informativeness', () => {
+    const gate = new PreIngestGate()
+    const v = gate.evaluate(WORTHLESS_DENSE, {sourceId: 's_filler', sourceTier: 1})
+    // Passes density (it is long & lexically varied) but must still be rejected.
+    expect(v.density).toBeGreaterThanOrEqual(8)
+    expect(v.decision).toBe('reject')
+    expect(v.informativeness).toBeLessThan(0.15)
+    expect(v.reasons.some((r) => r.includes('informativeness'))).toBe(true)
+  })
+
+  it('SIGNAL-QUALITY GAP: substantive concrete content scores high informativeness and is accepted', () => {
+    const gate = new PreIngestGate()
+    const v = gate.evaluate(
+      'Transformer attention computes softmax(QKᵀ/√d)V. Vaswani et al. (2017) showed d=64 yields factor 8, stabilizing gradients across 12 layers.',
+      {sourceId: 's_substantive', sourceTier: 1, query: 'transformer attention'},
+    )
+    expect(v.informativeness).toBeGreaterThan(0.5)
+    expect(v.decision).toBe('accept')
+  })
+
+  it('computeInformativeness separates filler from concrete content', () => {
+    const filler = computeInformativeness(WORTHLESS_DENSE)
+    const concrete = computeInformativeness('Vaswani et al. (2017) reported d=64, factor 8, across 12 transformer layers.')
+    expect(filler).toBeLessThan(0.2)
+    expect(concrete).toBeGreaterThan(0.6)
+    expect(concrete - filler).toBeGreaterThan(0.4) // strong separation
   })
 
   it('respects a custom stricter accept threshold', () => {

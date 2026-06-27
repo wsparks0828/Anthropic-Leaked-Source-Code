@@ -45,6 +45,12 @@ export interface PreIngestConfig {
    */
   minChars: number
   minDistinctTokens: number
+  /**
+   * Informativeness floors (closes the "dense-but-worthless" gap the query-blind
+   * rubric + density cannot catch). Concrete-signal ratio minus filler ratio.
+   */
+  minInformativeness: number // below → at best deprioritized
+  rejectInformativeness: number // below → rejected outright
 }
 
 export const DEFAULT_PRE_INGEST_CONFIG: PreIngestConfig = {
@@ -54,6 +60,44 @@ export const DEFAULT_PRE_INGEST_CONFIG: PreIngestConfig = {
   rejectAboveTier: 3, // tier 4 → never accepted (I2)
   minChars: 40,
   minDistinctTokens: 8,
+  minInformativeness: 0.35,
+  rejectInformativeness: 0.15,
+}
+
+function clamp(v: number, lo: number, hi: number): number {
+  return Math.max(lo, Math.min(hi, v))
+}
+
+/** Filler / hedge tokens that carry little information. */
+const FILLER_TOKENS = new Set([
+  'basically', 'just', 'thing', 'things', 'stuff', 'really', 'very', 'kind', 'honestly',
+  'whatever', 'more', 'less', 'general', 'sense', 'know', 'depends', 'like', 'maybe', 'idk',
+  'yeah', 'ok', 'okay', 'sorta', 'kinda', 'actually', 'literally', 'somewhat', 'anyway',
+  'somehow', 'sort', 'lot', 'lots', 'much', 'many', 'some', 'good', 'nice', 'pretty',
+])
+
+/**
+ * Query-independent informativeness in [0,1].
+ * Rewards concrete signals (numbers, proper nouns, long/technical words, math/citation
+ * symbols); penalizes filler density. Operates on the ORIGINAL (cased) content.
+ */
+export function computeInformativeness(content: string): number {
+  const words = content.toLowerCase().split(/\W+/).filter((t) => t.length > 0)
+  const n = words.length
+  if (n === 0) return 0
+
+  const fillerCount = words.filter((w) => FILLER_TOKENS.has(w)).length
+  const fillerRatio = fillerCount / n
+
+  const numbers = (content.match(/\d+/g) || []).length
+  const properNouns = (content.match(/\b[A-Z][a-z]{2,}\b/g) || []).length
+  const longWords = words.filter((w) => w.length >= 9).length
+  const symbols = (content.match(/[()[\]/√ᵀ=+×∑]/g) || []).length
+  const concreteCount = numbers + properNouns + longWords + Math.min(symbols, n)
+  const concreteRatio = concreteCount / n
+
+  const info = 0.5 + 2.0 * concreteRatio - 1.2 * fillerRatio
+  return clamp(info, 0, 1)
 }
 
 export interface LessonRecord {
@@ -70,6 +114,7 @@ export interface PreIngestVerdict {
   decision: PreIngestDecision
   composite: number // dims 1-3 composite (0-1)
   density: number // distinct-token count (query-independent signal)
+  informativeness: number // concrete-signal vs filler ratio (0-1, query-independent)
   dimensionScores: {relevance: number; coherence: number; factuality: number}
   truthFlag: 'ok' | 'contradiction' | 'low_evidence'
   sourceTier: SourceTier
@@ -106,6 +151,9 @@ export class PreIngestGate {
     const density = new Set(tokens).size
     const belowDensity = content.trim().length < this.cfg.minChars || density < this.cfg.minDistinctTokens
 
+    // --- Informativeness scan (query-independent; closes dense-but-worthless gap) ---
+    const informativeness = computeInformativeness(content)
+
     // --- Basic rubric scan: dimensions 1,2,3 only (THOTH "lite") ---
     const rubric = globalRubricScorer.score(content, {query: meta.query})
     const d = {
@@ -131,20 +179,24 @@ export class PreIngestGate {
 
     if (
       belowDensity ||
+      informativeness < this.cfg.rejectInformativeness ||
       sourceTier > this.cfg.rejectAboveTier ||
       composite < this.cfg.rejectThreshold ||
       truthFlag === 'contradiction'
     ) {
       decision = 'reject'
       if (belowDensity) reasons.push(`thin content (density=${density}, len=${content.trim().length})`)
+      if (informativeness < this.cfg.rejectInformativeness) reasons.push(`low informativeness ${informativeness.toFixed(2)} < ${this.cfg.rejectInformativeness}`)
       if (sourceTier > this.cfg.rejectAboveTier) reasons.push(`tier ${sourceTier} below provenance floor`)
       if (composite < this.cfg.rejectThreshold) reasons.push(`composite ${composite.toFixed(2)} < reject ${this.cfg.rejectThreshold}`)
     } else if (
       sourceTier > this.cfg.deprioritizeAboveTier ||
       composite < this.cfg.acceptThreshold ||
+      informativeness < this.cfg.minInformativeness ||
       truthFlag === 'low_evidence'
     ) {
       decision = composite < this.cfg.acceptThreshold && truthFlag === 'ok' ? 'flag' : 'deprioritize'
+      if (informativeness < this.cfg.minInformativeness) reasons.push(`informativeness ${informativeness.toFixed(2)} < ${this.cfg.minInformativeness}`)
       reasons.push(`tier ${sourceTier} / composite ${composite.toFixed(2)} below accept bar`)
     } else {
       decision = 'accept'
@@ -200,7 +252,7 @@ export class PreIngestGate {
       this.logger.logLesson(lesson)
     }
 
-    return {decision, composite, density, dimensionScores: d, truthFlag, sourceTier, priority, reasons, lesson}
+    return {decision, composite, density, informativeness, dimensionScores: d, truthFlag, sourceTier, priority, reasons, lesson}
   }
 
   private computePriority(decision: PreIngestDecision, composite: number, tier: SourceTier): number {
