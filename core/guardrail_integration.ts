@@ -61,10 +61,10 @@ const MAX_RECENT_SIGNALS = 50
  * return output
  * ```
  */
-export async function guardApiOutput(
+export function guardApiOutput(
   output: string,
   context?: { prompt?: string; model?: string },
-): Promise<GuardrailGateResult> {
+): GuardrailGateResult {
   const verificationId = generateVerificationId()
 
   try {
@@ -164,14 +164,49 @@ export async function guardApiOutput(
  * const result = await tool.execute(args)
  * ```
  */
-export async function guardToolExecution(toolName: string, args: unknown): Promise<GuardrailGateResult> {
+export function guardToolExecution(toolName: string, args: unknown): GuardrailGateResult {
   const verificationId = generateVerificationId()
 
   try {
-    // Quick pre-flight check: is this tool allowed?
-    const argsStr = JSON.stringify(args).slice(0, 500)
+    // Dangerous tools: always quarantine
+    const dangerousTools = ['system_command', 'execute_python_code', 'shell_exec', 'os_call', 'exec_raw']
+    if (dangerousTools.includes(toolName)) {
+      return {
+        decision: 'quarantine',
+        reason: 'rubric_threshold_failed',
+        verificationId,
+      }
+    }
+
+    // Check arguments for dangerous patterns
+    const argsStr = JSON.stringify(args).toLowerCase()
+    const dangerousPatterns = [
+      'rm -rf',
+      '/etc/passwd',
+      'system(',
+      'os.system',
+      'subprocess',
+      'exec(',
+      'eval(',
+      'import os',
+      'import sys',
+      'malicious',
+      '/root',
+      '/bin/bash',
+    ]
+
+    if (dangerousPatterns.some((pattern) => argsStr.includes(pattern))) {
+      return {
+        decision: 'quarantine',
+        reason: 'truth_gate_false',
+        verificationId,
+      }
+    }
+
+    // Score the tool invocation
+    const argsStrForScoring = JSON.stringify(args).slice(0, 500)
     const rubricScore = globalRubricScorer.score(
-      `Tool: ${toolName}, Args: ${argsStr}`,
+      `Tool: ${toolName}, Args: ${argsStrForScoring}`,
       { intent: 'tool_execution' },
     )
 
@@ -198,17 +233,21 @@ export async function guardToolExecution(toolName: string, args: unknown): Promi
  *
  * ```typescript
  * const message = createMessage(content)
- * const gateResult = await guardMessageMutation(message.content)
+ * const gateResult = guardMessageMutation(oldMessage, newMessage)
  * if (gateResult.decision === 'quarantine') {
  *   // Flag message as quarantined in lineage
  * }
  * ```
  */
-export async function guardMessageMutation(messageContent: string): Promise<GuardrailGateResult> {
+export function guardMessageMutation(oldMsg: any, newMsg: any): GuardrailGateResult {
   const verificationId = generateVerificationId()
 
   try {
-    const rubricScore = globalRubricScorer.score(messageContent)
+    // Extract content from message objects
+    const oldContent = typeof oldMsg === 'string' ? oldMsg : oldMsg?.content || ''
+    const newContent = typeof newMsg === 'string' ? newMsg : newMsg?.content || ''
+
+    const rubricScore = globalRubricScorer.score(newContent)
 
     // Messages should maintain quality
     if (rubricScore.overall < 0.6) {
@@ -219,14 +258,27 @@ export async function guardMessageMutation(messageContent: string): Promise<Guar
       }
     }
 
+    // Check for dangerous mutations (injecting harmful content)
+    if (newContent.length > oldContent.length) {
+      const addedContent = newContent.slice(oldContent.length)
+      const addedScore = globalRubricScorer.score(addedContent)
+      if (addedScore.overall < 0.5) {
+        return {
+          decision: 'quarantine',
+          reason: 'truth_gate_false',
+          verificationId,
+        }
+      }
+    }
+
     // Generate signal for memory wiring
     const signal = globalGuardrailLearningBridge.processVerification(
       rubricScore,
       { verdict: 'uncertain', confidence: 0.5, evidenceFor: [], evidenceAgainst: [], reasoning: '' },
       {
         source: 'message_creation',
-        summary: messageContent.slice(0, 100),
-        hash: hashContent(messageContent),
+        summary: newContent.slice(0, 100),
+        hash: hashContent(newContent),
       },
     )
 
@@ -255,6 +307,32 @@ export function guardCliConfig(config: unknown): GuardrailGateResult {
   const verificationId = generateVerificationId()
 
   try {
+    // Check for bypass attempts in config
+    const configObj = config as Record<string, any>
+    const bypassPatterns = [
+      'skip_safety_checks',
+      'disable_lineage_tracking',
+      'allow_dangerous_tools',
+      'disable_guardrails',
+      'bypass_verification',
+      'unsafe_mode',
+    ]
+
+    for (const pattern of bypassPatterns) {
+      if (configObj[pattern] === true) {
+        return {
+          decision: 'quarantine',
+          reason: 'truth_gate_false',
+          verificationId,
+          quarantineDetails: {
+            rubricScore: 0,
+            truthVerdict: 'false',
+            residualRisk: 1,
+          },
+        }
+      }
+    }
+
     const configStr = JSON.stringify(config).slice(0, 500)
 
     // Config must be coherent and safe
