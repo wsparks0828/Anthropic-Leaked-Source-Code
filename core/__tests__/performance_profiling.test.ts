@@ -101,7 +101,7 @@ describe('Performance Profiling', () => {
    */
   it('should measure cross-verifier latency', () => {
     const proposal = {
-      target: 'safety_gate',
+      target: 'safety_gate' as const,
       changeType: 'threshold_adjust' as const,
       proposal: 'Increase safety threshold by 0.1',
       rationale: 'Multiple anomalies detected',

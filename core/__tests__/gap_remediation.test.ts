@@ -265,7 +265,8 @@ describe('Gap Remediation - All 8 Gaps', () => {
     it('should rollback on error', () => {
       const txn = createMemoryTransaction()
       txn.addUpdate('semantic', 'key1', {value: 'data1'})
-      txn.addUpdate('invalid_layer', 'key2', {value: 'data2'})
+      // Intentionally-invalid layer to exercise the rollback path (cast acknowledges it).
+      txn.addUpdate('invalid_layer' as any, 'key2', {value: 'data2'})
 
       const mockLayers = {
         semantic: new Map(),

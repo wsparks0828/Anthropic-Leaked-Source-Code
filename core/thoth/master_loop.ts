@@ -22,6 +22,7 @@ import {PreIngestGate, type SourceTier, type PreIngestDecision} from './pre_inge
 import {LifecycleEnforcer} from './lifecycle.js'
 import {RefinementLoop} from '../loops/refinement_loop.js'
 import {ControlLoop} from '../loops/control_loop.js'
+import {AuditLoop} from '../loops/audit_loop.js'
 import {globalLineageAuditor} from '../lineage_auditor.js'
 import {type GuardrailProposal} from '../guardrail_learning_bridge.js'
 import {globalJsonlLogger, type JsonlLogger} from './jsonl_logger.js'
@@ -66,6 +67,7 @@ export interface CycleResult {
   healingAccepted: boolean
   thresholdAfter: number
   drained: number
+  chainIntact: boolean
   accepted: boolean
   lineageRecordId: string
 }
@@ -76,6 +78,7 @@ export class MasterLoop {
   private readonly lifecycle: LifecycleEnforcer
   private readonly refinement: RefinementLoop
   private readonly control: ControlLoop
+  private readonly audit: AuditLoop
   private readonly logger?: Pick<JsonlLogger, 'logHealingAction' | 'logLesson' | 'logRubricScore'>
   private drainArchive = 0
 
@@ -91,6 +94,7 @@ export class MasterLoop {
     this.lifecycle = opts?.lifecycle ?? new LifecycleEnforcer()
     this.refinement = new RefinementLoop()
     this.control = opts?.control ?? new ControlLoop()
+    this.audit = new AuditLoop()
     this.logger = opts?.logger
   }
 
@@ -169,9 +173,11 @@ export class MasterLoop {
       this.drainArchive++
     }
 
-    // WRITING_STATE — persist a cycle summary to immutable lineage (I2)
+    // WRITING_STATE — verify lineage integrity (Audit Loop, fail-closed) then persist.
     go('WRITING_STATE')
-    const accepted = reasoned && lifecycleDecision === 'accept'
+    this.audit.tick()
+    const chainIntact = !this.audit.isQuarantined()
+    const accepted = reasoned && lifecycleDecision === 'accept' && chainIntact
     const rec = globalLineageAuditor.addRecord({
       verificationId: `cycle_${input.sourceId}_${Date.now()}`,
       timestamp: BigInt(Date.now()) * BigInt(1_000_000),
@@ -188,6 +194,7 @@ export class MasterLoop {
             lifecycle: lifecycleDecision ?? 'n/a',
             healingAccepted,
             threshold: this.control.getThreshold(),
+            chainIntact,
             accepted,
           },
         },
@@ -211,6 +218,7 @@ export class MasterLoop {
       healingAccepted,
       thresholdAfter: this.control.getThreshold(),
       drained: this.drainArchive,
+      chainIntact,
       accepted,
       lineageRecordId: rec.chainHash,
     }
@@ -236,6 +244,7 @@ export class MasterLoop {
     this.state = 'IDLE'
     this.drainArchive = 0
     this.control.reset()
+    this.audit.reset()
   }
 }
 

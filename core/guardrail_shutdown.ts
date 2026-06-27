@@ -155,8 +155,9 @@ class GracefulShutdownManager {
       }
 
       try {
-        // Export full lineage chain
-        const lineageRecords = globalLineageAuditor.exportLineage(10000, 'json-ld')
+        // Export full lineage chain (privileged internal path — shutdown flush is a
+        // trusted in-process lifecycle operation, not an external/gated export).
+        const lineageRecords = globalLineageAuditor.exportLineageInternal(10000, 'json-ld')
         const stats = globalLineageAuditor.getChainStats()
 
         // Prepare storage payload

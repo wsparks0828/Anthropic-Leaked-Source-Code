@@ -231,6 +231,25 @@ describe('Lineage Auditing', () => {
   })
 
   /**
+   * Privileged internal export bypasses the token gate (shutdown-flush wiring fix).
+   * Regression: access control must NOT silently empty the shutdown/startup export.
+   */
+  it('exportLineageInternal returns records without a token; external export does not', () => {
+    auditor.addRecord({
+      verificationId: 'ver_internal',
+      timestamp: BigInt(1000000),
+      decision: 'accept',
+      rubricScore: 0.8,
+      truthVerdict: 'true',
+      lineage: {who: 'x', what: {after: {}}, when: BigInt(1000000), auth: 'sig'},
+    })
+    // Privileged internal path (used by graceful shutdown) — no token needed.
+    expect(auditor.exportLineageInternal(10, 'json-ld').length).toBe(1)
+    // External gated path with NO token — must remain empty (access control intact).
+    expect(auditor.exportLineage(10, 'json-ld', undefined).length).toBe(0)
+  })
+
+  /**
    * Test 7: Export Respects Limit
    */
   it('should respect export limit', () => {
@@ -440,14 +459,14 @@ describe('Lineage Auditing', () => {
 
     auditor3.addRecord({
       verificationId: 'ver_002',
-      timestamp: BigInt(1000000), // Duplicate timestamp!
+      timestamp: BigInt(500000), // Decreasing timestamp — a genuine ordering violation
       decision: 'accept',
       rubricScore: 0.80,
       truthVerdict: 'true',
       lineage: {
         who: 'guardrail_api_gate',
         what: {after: {decision: 'accept'}},
-        when: BigInt(1000000),
+        when: BigInt(500000),
         auth: 'verification_signal',
       },
     })

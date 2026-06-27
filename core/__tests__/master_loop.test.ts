@@ -53,7 +53,7 @@ describe('THOTH Master Loop', () => {
     const r = loop.runCycle({content: GOOD, sourceId: 's_full', sourceTier: 1, intent: 'explain', query: 'transformer attention'})
     expect(r.reasoned).toBe(true)
     for (const s of ['PRE_INGEST', 'REASONING', 'VERIFYING', 'REFLECT_HEAL', 'IMPROVING', 'DRAINAGE', 'WRITING_STATE']) {
-      expect(r.path).toContain(s)
+      expect(r.path as string[]).toContain(s)
     }
   })
 
@@ -71,6 +71,29 @@ describe('THOTH Master Loop', () => {
     loop.runCycle({content: 'idk maybe. stuff.', sourceId: 's_rej', sourceTier: 1}) // reject → drained
     const r = loop.runCycle({content: 'idk. no.', sourceId: 's_rej2', sourceTier: 1}) // reject → drained
     expect(r.drained).toBeGreaterThanOrEqual(2)
+  })
+
+  it('integrity wiring: a clean cycle reports chainIntact=true', () => {
+    const loop = new MasterLoop()
+    const r = loop.runCycle({content: GOOD, sourceId: 's_intact', sourceTier: 1, intent: 'x', query: 'transformer attention'})
+    expect(r.chainIntact).toBe(true)
+    expect(r.accepted).toBe(true)
+  })
+
+  it('integrity wiring: a broken lineage chain fails the cycle closed (never accept)', () => {
+    const loop = new MasterLoop()
+    const original = globalLineageAuditor.verifyLineageChain.bind(globalLineageAuditor)
+    // Simulate tamper detection during the audit-loop tick.
+    ;(globalLineageAuditor as any).verifyLineageChain = () => ({
+      valid: false,
+      brokenAt: 'x',
+      violations: [{verificationId: 'x', type: 'hash', description: 'mismatch'}],
+    })
+    const r = loop.runCycle({content: GOOD, sourceId: 's_tamper', sourceTier: 1, intent: 'x', query: 'transformer attention'})
+    ;(globalLineageAuditor as any).verifyLineageChain = original
+
+    expect(r.chainIntact).toBe(false)
+    expect(r.accepted).toBe(false) // fail-closed regardless of lifecycle verdict
   })
 
   it('logger wiring: healing actions + lessons are recorded when provided', () => {

@@ -5,7 +5,8 @@
  * - No gaps in verification chain
  * - All 4 forensic fields present (who/what/when/auth)
  * - SHA256 chain hashes prevent tampering
- * - Timestamps monotonically increasing
+ * - Timestamps non-decreasing (equal allowed within same millisecond; only a
+ *   strictly decreasing timestamp is an ordering violation)
  * - No records deleted or modified
  */
 
@@ -152,13 +153,16 @@ export class LineageAuditor {
       prevHash = record.chainHash
     }
 
-    // Check 5: Timestamps monotonically increasing
+    // Check 5: Timestamps non-decreasing. EQUAL timestamps are legitimate — two
+    // records created within the same millisecond (Date.now resolution) share a
+    // value, and chain order is already fixed by array position + prevHash links.
+    // Only a STRICTLY DECREASING timestamp indicates a real ordering anomaly.
     for (let i = 1; i < this.chain.length; i++) {
-      if (this.chain[i].timestamp <= this.chain[i - 1].timestamp) {
+      if (this.chain[i].timestamp < this.chain[i - 1].timestamp) {
         violations.push({
           verificationId: this.chain[i].verificationId,
           type: 'timestamp_order_violation',
-          description: `Timestamp not monotonically increasing: ${this.chain[i - 1].timestamp} >= ${this.chain[i].timestamp}`,
+          description: `Timestamp decreased (out of order): ${this.chain[i - 1].timestamp} > ${this.chain[i].timestamp}`,
         })
         return {valid: false, brokenAt: this.chain[i].verificationId, violations}
       }
@@ -177,12 +181,27 @@ export class LineageAuditor {
     format: 'json-ld' | 'json' = 'json-ld',
     authToken?: string,
   ): LineageRecord[] {
-    // ACCESS CONTROL: Check authorization
+    // ACCESS CONTROL: external export requires a valid authorization token.
     if (!isAuthorizedForLineageExport(authToken)) {
       console.warn('[lineage-auditor] Unauthorized exportLineage attempt (no valid token)')
       return []
     }
+    return this.formatExport(limit, format)
+  }
 
+  /**
+   * Privileged internal export — NO access-control gate.
+   *
+   * For in-process trusted lifecycle callers ONLY (graceful-shutdown lineage flush,
+   * startup readiness self-test). These run as part of the system's own lifecycle,
+   * not in response to external requests, so the token gate (which protects the
+   * external/compliance export surface) must not apply or durability would break.
+   */
+  exportLineageInternal(limit: number = 100, format: 'json-ld' | 'json' = 'json-ld'): LineageRecord[] {
+    return this.formatExport(limit, format)
+  }
+
+  private formatExport(limit: number, format: 'json-ld' | 'json'): LineageRecord[] {
     const records = this.chain.slice(-limit)
 
     if (format === 'json-ld') {
@@ -298,10 +317,15 @@ export function verifyLineageChain(): ChainVerificationResult {
 }
 
 /**
- * Convenience function: export lineage for audit.
+ * Convenience function: export lineage for audit (external, access-controlled).
+ * Requires a valid authorization token — without it this returns [] by design.
  */
-export function exportLineage(limit: number = 100, format: 'json-ld' | 'json' = 'json-ld'): LineageRecord[] {
-  return globalLineageAuditor.exportLineage(limit, format)
+export function exportLineage(
+  limit: number = 100,
+  format: 'json-ld' | 'json' = 'json-ld',
+  authToken?: string,
+): LineageRecord[] {
+  return globalLineageAuditor.exportLineage(limit, format, authToken)
 }
 
 /**

@@ -207,7 +207,8 @@ describe('E2E Verification Cycle', () => {
   it('should gate message creation before persistence', async () => {
     const message = 'User provided message for quality gate testing.'
 
-    const result = await guardMessageMutation(message)
+    // Message creation: old content is empty, new content is the message.
+    const result = await guardMessageMutation('', message)
 
     expect(result.decision).toMatch(/accept|quarantine/)
     expect(result.verificationId).toMatch(/^ver_/)

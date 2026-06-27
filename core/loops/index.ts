@@ -8,6 +8,16 @@
  *   4 consolidation — atomic episodic→semantic memory consolidation
  *   5 audit         — continuous lineage chain re-verification (sticky fail-closed)
  *   6 coordination  — verifier barrier join (no partial-quorum accept)
+ *
+ * INTEGRATION STATUS (explicit — no dangling/unwired ambiguity):
+ *   - Loops 1, 2, 5 are wired into the THOTH Master Loop (thoth/master_loop.ts):
+ *       control = bounded threshold improvement; refinement = healing; audit = per-cycle
+ *       lineage-integrity fail-closed gate.
+ *   - Loops 3 (agentic), 4 (consolidation), 6 (coordination) are STANDALONE,
+ *       request-driven utilities. They are intentionally NOT on the master path:
+ *       agentic's sense/decide/act overlaps the 9-step LifecycleEnforcer; coordination
+ *       is a barrier utility callable around any verifier set; consolidation is invoked
+ *       on demand for memory replay. Each is fully tested in isolation.
  */
 
 export * from './loop_contract.js'

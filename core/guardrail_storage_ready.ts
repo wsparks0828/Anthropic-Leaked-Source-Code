@@ -132,8 +132,9 @@ class StorageReadinessValidator {
         }
       }
 
-      // Try to export (tests readability)
-      const exported = globalLineageAuditor.exportLineage(1)
+      // Try to export (tests readability) — privileged internal path; this is a
+      // startup self-test, not a gated external export.
+      const exported = globalLineageAuditor.exportLineageInternal(1)
       if (!Array.isArray(exported)) {
         return {
           ready: false,

@@ -28,7 +28,7 @@ describe('THOTH Lifecycle Enforcer', () => {
     expect(r.finalDecision).toBe('quarantine')
     // Short-circuit: blocked at fact_audit or safety, so fewer than 9 steps ran.
     expect(r.steps.length).toBeLessThan(9)
-    expect(['fact_audit', 'safety']).toContain(r.blockedAt)
+    expect(['fact_audit', 'safety']).toContain(r.blockedAt!)
   })
 
   it('I3: accept implies all hard gates passed', () => {
