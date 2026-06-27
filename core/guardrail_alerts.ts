@@ -215,7 +215,7 @@ export const warningAlerts: AlertRule[] = [
     duration: 900000, // 15 minutes
     severity: 'warning',
     message: () =>
-      'Warning: Guardrail health is degraded. Monitor for escalation to critical.`,
+      'Warning: Guardrail health is degraded. Monitor for escalation to critical.',
     action: (event) => {
       console.warn(`[WARNING] ${event.message}`)
     },
@@ -249,7 +249,7 @@ export const infoAlerts: AlertRule[] = [
     operator: '!=',
     duration: 0,
     severity: 'info',
-    message: () => 'Info: Guardrail proposal generated. Will be validated by cross-verifier.`,
+    message: () => 'Info: Guardrail proposal generated. Will be validated by cross-verifier.',
     action: (event) => {
       console.log(`[INFO] ${event.message}`)
     },
@@ -368,6 +368,13 @@ export class AlertManager {
    */
   getHistory(limit: number = 100): AlertEvent[] {
     return this.alertHistory.slice(-limit)
+  }
+
+  /**
+   * Export alert history for persistence (called during graceful shutdown)
+   */
+  exportAlertHistory(): AlertEvent[] {
+    return [...this.alertHistory]
   }
 
   /**
