@@ -44,6 +44,21 @@ export {
   type HealingActionLine,
 } from './jsonl_logger.js'
 
+// Token optimization (near-zero-token LLM orchestration; LLM is injected, zero SDK deps).
+export {
+  TokenOptimizer,
+  ResultCache,
+  TokenBudget,
+  classifyModelTier,
+  estimateTokens,
+  buildCachedPrefix,
+  CACHE_MIN_TOKENS,
+  type ModelTier,
+  type LlmResult,
+  type OptimizedCallOptions,
+  type OptimizedCallOutcome,
+} from './token_optimization.js'
+
 // Host integration shim (wires guards into the live CLI; observe-by-default, fail-open).
 // Call setHostGuardMode('enforce') to let quarantine actually block (e.g. dangerous tools).
 export {
