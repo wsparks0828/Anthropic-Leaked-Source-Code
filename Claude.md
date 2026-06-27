@@ -361,9 +361,9 @@ Disagreement            >20%                >30%
 
 ---
 
-### 4.5 Lineage Auditing (Partial)
+### 4.5 Lineage Auditing (`core/lineage_auditor.ts`, 270 LOC)
 
-**Status**: OPERATIONAL_RUNBOOK.md created; code implementation pending
+**Status**: ✓ COMPLETE (all 15 tests passing)
 
 **OPERATIONAL_RUNBOOK.md** (completed):
 - 10 sections covering all operational procedures
@@ -376,31 +376,76 @@ Disagreement            >20%                >30%
 - Compliance & audit export format
 - Quick reference commands and contact tree
 
-**Code to Complete** (Phase 4 Task 5):
+**LineageAuditor Implementation** (Phase 4 Task 5):
 ```typescript
-// core/lineage_auditor.ts (needed)
+// core/lineage_auditor.ts
 
 export class LineageAuditor {
-  // Implement chain-hashing verification
-  verifyLineageChain(): {valid: boolean, brokenAt?: string}
+  // Add records to chain with automatic SHA256 hashing
+  addRecord(record): LineageRecord
   
-  // Export lineage for audit
-  exportLineage(limit: number, format: 'json-ld'): LineageRecord[]
+  // Verify chain integrity (5-point validation)
+  verifyLineageChain(): {valid: boolean, brokenAt?: string, violations?: Array}
+  
+  // Export lineage in JSON-LD format for compliance
+  exportLineage(limit: number, format: 'json-ld'|'json'): LineageRecord[]
+  
+  // Query operations
+  getRecord(verificationId): LineageRecord | undefined
+  getChainStats(): {totalRecords, oldestRecord, newestRecord, currentChainHash}
+  countInTimeRange(startTime, endTime): number
+  getRecent(count): LineageRecord[]
+  
+  // State management
+  reset(): void
   
   // Internal chain-hash computation
   private computeChainHash(prev: string, record: any): string
 }
 
-// Global instance
+// Global instance + convenience functions
 export const globalLineageAuditor = new LineageAuditor()
-
-// Key verification checks:
-// - No gaps in chain
-// - All 4 forensic fields present (who/what/when/auth)
-// - SHA256(prev + record) == record.chainHash
-// - Timestamps monotonically increasing
-// - No records deleted or modified
+export function verifyLineageChain(): ChainVerificationResult
+export function exportLineage(limit, format): LineageRecord[]
+export function getLineageStats(): ChainStats
 ```
+
+**Chain Verification (5-Point Validation)**:
+- ✓ No gaps in chain (proper sequential linking)
+- ✓ All 4 forensic fields present (who/what/when/auth)
+- ✓ SHA256(prev + record) == record.chainHash (tampering detection)
+- ✓ Timestamps monotonically increasing (prevent reordering)
+- ✓ Deltas capture before/after state (audit trail completeness)
+
+---
+
+### 4.6 Lineage Auditing Tests (`core/__tests__/lineage_auditing.test.ts`)
+
+**Status**: ✓ COMPLETE (15/15 tests passing)
+
+Tests validate:
+1. Add records to chain with proper linking
+2. Verify valid chains as intact
+3. Detect missing forensic fields (who/what/when/auth)
+4. Detect tampering in delta
+5. Detect non-monotonic timestamps (ordering violations)
+6. Export lineage in JSON-LD format
+7. Export respects limit parameter
+8. Retrieve specific records by verification ID
+9. Provide chain statistics
+10. Count records within time range
+11. Reset clears entire chain
+12. Global convenience functions available
+13. Detailed violation messages
+14. Recent records query efficiency
+15. Chain immutability guarantee through public API
+
+**Key Implementation Details**:
+- SHA256 chain-hashing prevents tampering
+- Immutable public API (can only add new records, never modify)
+- JSON-LD export format for compliance audit
+- Time-range queries for incident investigation
+- Atomic record addition with forensic fields
 
 ---
 
@@ -444,14 +489,14 @@ export const globalLineageAuditor = new LineageAuditor()
 │   ├── cross_verifier_ensemble.ts    # 3-verifier fail-closed voting
 │   ├── guardrail_integration.ts      # 4 system boundary gates
 │   ├── guardrail_health.ts           # Circular buffer health tracking
-│   ├── lineage_auditor.ts            # (TO IMPLEMENT: chain verification)
+│   ├── lineage_auditor.ts            # Immutable chain verification + SHA256 hashing
 │   ├── schemas.ts                    # Central type authority
 │   └── __tests__/
 │       ├── e2e_verification_cycle.test.ts
 │       ├── memory_wiring.test.ts
 │       ├── proposal_realism.test.ts
 │       ├── health_monitoring.test.ts
-│       └── lineage_auditing.test.ts  # (TO IMPLEMENT)
+│       └── lineage_auditing.test.ts  # 15 tests for chain verification
 ├── OPERATIONAL_RUNBOOK.md            # Full operational guide
 ├── Claude.md                         # This file
 └── [other Jarvis files...]
@@ -467,8 +512,8 @@ export const globalLineageAuditor = new LineageAuditor()
 | Memory Wiring Validation | 7 | ✓ PASSING |
 | Proposal Realism | 8 | ✓ PASSING |
 | Health Monitoring | 10 | ✓ PASSING |
-| Lineage Auditing | TBD | ⏳ TO IMPLEMENT |
-| **TOTAL** | **36** | **36/36 Passing** |
+| Lineage Auditing | 15 | ✓ PASSING |
+| **TOTAL** | **51** | **51/51 Passing** |
 
 All tests run with: `bun test core/__tests__/*.test.ts`
 
@@ -555,25 +600,17 @@ git push -u origin claude/jarvis-0HKxO
 
 ## How to Continue
 
-### Immediate Next Steps
+### Phase 4 Complete ✓
 
-**Phase 4 Task 5: Lineage Auditor Implementation**
-1. Create `core/lineage_auditor.ts`
-2. Implement `LineageAuditor` class with:
-   - `verifyLineageChain()`: validates chain integrity (check file for pseudocode)
-   - `exportLineage(limit, format)`: exports auditable records
-   - `computeChainHash()`: SHA256-based chain verification
-3. Reference OPERATIONAL_RUNBOOK.md sections 3 (Lineage Audit) for behavior specs
+All 6 Phase 4 tasks completed:
+- ✓ Task 1: E2E Verification Cycle (11/11 tests)
+- ✓ Task 2: Memory Wiring Validation (7/7 tests)
+- ✓ Task 3: Proposal Realism (8/8 tests)
+- ✓ Task 4: Health Monitoring (10/10 tests)
+- ✓ Task 5: Lineage Auditor Implementation (core/lineage_auditor.ts)
+- ✓ Task 6: Lineage Auditing Tests (15/15 tests)
 
-**Phase 4 Task 6: Lineage Test Suite**
-1. Create `core/__tests__/lineage_auditing.test.ts`
-2. Implement 10+ tests validating:
-   - Chain integrity checks
-   - Tampering detection
-   - Export format correctness
-   - Immutability enforcement
-
-### Long-term Roadmap (Post-Phase 4)
+### Long-term Roadmap (Phase 5+)
 
 1. **Phase 5**: Integration testing with real Jarvis API calls
 2. **Phase 6**: Performance profiling (measure latency impact)
