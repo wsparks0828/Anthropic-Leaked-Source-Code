@@ -77,7 +77,7 @@ export async function guardApiOutput(
     // Check truth
     const truthVerdict = globalTruthGate.gate(output)
 
-    // Decision logic
+    // Decision logic (fail-closed on safety, more permissive on quality)
     if (rubricScore.overall < DEFAULT_GUARDRAIL_CONFIG.rubricThreshold) {
       return {
         decision: 'quarantine',
@@ -91,7 +91,12 @@ export async function guardApiOutput(
       }
     }
 
-    if (truthVerdict.verdict === 'false' && truthVerdict.severity === 'critical') {
+    // Quarantine if definitely false AND dangerous
+    if (
+      truthVerdict.verdict === 'false' &&
+      truthVerdict.severity &&
+      ['critical', 'high'].includes(truthVerdict.severity)
+    ) {
       return {
         decision: 'quarantine',
         reason: 'truth_gate_false',

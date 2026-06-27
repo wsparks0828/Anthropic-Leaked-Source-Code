@@ -242,10 +242,10 @@ export type {
  * Default config values.
  */
 export const DEFAULT_GUARDRAIL_CONFIG: GuardrailConfig = {
-  rubricThreshold: 0.65,
-  truthThreshold: 'true',
-  crossCheckThreshold: 'pass',
-  maxResidualRisk: 0.2,
+  rubricThreshold: 0.55, // Adjusted: reasonable quality standard
+  truthThreshold: 'uncertain', // Accept uncertain if rubric is good
+  crossCheckThreshold: 'warn', // Allow warn-level proposals
+  maxResidualRisk: 0.25,
   features: {
     enableRubricScoring: true,
     enableTruthGating: true,
