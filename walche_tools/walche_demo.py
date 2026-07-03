@@ -38,6 +38,28 @@ def err(t):  return col(t, C.RED)
 def hi(t):   return col(t, C.CYAN)
 def bold(t): return col(t, C.BOLD)
 
+def _fmt_proposal(p) -> str:
+    """Extract human-readable text from a HealingProposal object or string."""
+    if isinstance(p, str):
+        return p
+    # Try common description attribute names
+    for attr in ("description", "action", "text", "message", "proposal", "content", "summary"):
+        val = getattr(p, attr, None)
+        if val and isinstance(val, str) and val.strip():
+            ptype = getattr(p, "proposal_type", "")
+            dim   = getattr(p, "target_dimension", "")
+            prefix = f"[{ptype}] " if ptype else ""
+            suffix = f" → {dim}" if dim else ""
+            return f"{prefix}{val.strip()}{suffix}"
+    # Fall back: parse the repr string for description= field
+    import re as _re
+    s = str(p)
+    m = _re.search(r"description=['\"]([^'\"]+)['\"]", s)
+    if m:
+        return m.group(1)
+    # Last resort: return the full str but without the class wrapper noise
+    return s
+
 # Enable ANSI on Windows
 if sys.platform == "win32":
     os.system("")
@@ -277,7 +299,7 @@ def run_cycle(
         print(f"\n  [{status}] {bold(label)}")
         print(f"    Score:      {_bar(score)}")
         print(f"    Confidence: {_score_color(confidence)}   RPN: {rpn} ({risk_level})")
-        proposals_str = [str(p) for p in proposals]
+        proposals_str = [_fmt_proposal(p) for p in proposals]
         if proposals_str:
             for p in proposals_str[:2]:
                 print(f"    {C.DIM}↳ {p[:80]}{C.RESET}")
