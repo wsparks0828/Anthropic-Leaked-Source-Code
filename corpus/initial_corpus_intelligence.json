@@ -1,0 +1,232 @@
+{
+  "meta": {
+    "title": "WALCHE / EPM-STARK Initial Corpus Intelligence",
+    "extracted": "2026-07-03",
+    "session_id": "cfae50a5-2040-59ef-b236-2a1f5bb23514",
+    "transcript_lines": 947,
+    "transcript_size_mb": 8.1,
+    "owner": "wsparks082817@gmail.com",
+    "purpose": "First ingestion corpus for WALCHE intelligence building and cognitive scoring baseline"
+  },
+
+  "walche_architecture": {
+    "core_modules_confirmed": [
+      "core.config",
+      "core.connection_monitor",
+      "core.healing_engine",
+      "core.meta_engine",
+      "core.pain_fmea",
+      "core.pre_ingest_gate",
+      "core.rubric",
+      "core.spine_guardian"
+    ],
+    "classes_referenced": [
+      "WalcheConfig",
+      "MetaEngine",
+      "HealingEngine",
+      "Guardrail",
+      "RubricScorer",
+      "PAINFMEA",
+      "PAINEngine",
+      "PreIngestGate",
+      "SpineGuardian",
+      "ConnectionMonitor",
+      "Orchestrator",
+      "PersistentReflectionMemory",
+      "PPORecoveryAgent",
+      "NeuroSymbolicHealingAgent",
+      "DreamCycle",
+      "CorpusSeeder",
+      "KnowledgeInjector",
+      "CEVIPPipeline",
+      "VerificationLearningLoop",
+      "EnhancedQualityScorer",
+      "LoopAudit",
+      "WALCHEEvalPipeline",
+      "WACHELHealingGraph",
+      "ProvenanceLog",
+      "MemoryStore",
+      "StateGraph"
+    ],
+    "local_path": "C:\\Users\\wspar\\Desktop\\WALCHE_FULL_20260630_214341",
+    "epm_stark_path": "C:\\EPM-STARK",
+    "server": "87.99.150.237 / your-server.de",
+    "constraint": "WALCHE must remain standalone — no EPM-STARK references inside WALCHE core"
+  },
+
+  "frameworks_and_libraries": {
+    "ai_ml": [
+      "langgraph",
+      "chromadb",
+      "faiss",
+      "sentence_transformers",
+      "stable_baselines3",
+      "numpy",
+      "anthropic",
+      "openai"
+    ],
+    "reinforcement_learning": [
+      "PPO (Proximal Policy Optimization)",
+      "PPORecoveryAgent",
+      "stable_baselines3",
+      "gymnasium"
+    ],
+    "graph_and_workflow": [
+      "langgraph",
+      "StateGraph"
+    ],
+    "memory_and_storage": [
+      "chromadb",
+      "faiss",
+      "PersistentReflectionMemory",
+      "MemoryStore"
+    ],
+    "web_and_api": [
+      "flask",
+      "api.perplexity.ai",
+      "platform.claude.com"
+    ]
+  },
+
+  "research_papers": [
+    {
+      "url": "https://arxiv.org/pdf/2310.04406",
+      "topic": "AI/ML research"
+    },
+    {
+      "url": "https://arxiv.org/pdf/2401.01313",
+      "topic": "AI/ML research"
+    },
+    {
+      "url": "https://arxiv.org/pdf/2401.14295",
+      "topic": "AI/ML research"
+    },
+    {
+      "url": "https://arxiv.org/pdf/2506.01536",
+      "topic": "AI/ML research (most recent)"
+    },
+    {
+      "url": "https://arxiv.org/list/cs.AI",
+      "topic": "AI paper listing"
+    },
+    {
+      "url": "https://paperswithcode.com/sota",
+      "topic": "State of the art benchmarks"
+    },
+    {
+      "url": "https://www.nature.com/articles/s41467-025-65836-3",
+      "topic": "Nature journal - scientific research"
+    },
+    {
+      "url": "https://github.com/EleutherAI/lm-evaluation-harness",
+      "topic": "LLM evaluation framework"
+    },
+    {
+      "url": "https://plato.stanford.edu/contents.html",
+      "topic": "Stanford Encyclopedia of Philosophy"
+    },
+    {
+      "url": "https://www.jstor.org/action/showPublications",
+      "topic": "JSTOR academic publications"
+    },
+    {
+      "url": "https://standards.ieee.org/browse/",
+      "topic": "IEEE standards"
+    }
+  ],
+
+  "construction_domain_sources": {
+    "note": "ESTC2 corpus domain — construction terminology, blueprints, contracts, RFIs",
+    "urls": [
+      "https://advancedbuildingcorporation.com/blog/construction-blueprint-reading-guide/",
+      "https://esub.com/blog/common-commercial-construction-terms-you-should-know",
+      "https://fluix.io/blog/construction-submittals",
+      "https://layer.team/blog/the-complete-guide-to-rfis-in-construction-administration",
+      "https://learn.aiacontracts.com/articles/four-types-of-construction-contracts-you-need-to-understand/",
+      "https://www.linarc.com/buildspace/the-ultimate-guide-to-construction-rfis-everything-you-need-to-know",
+      "https://www.mastt.com/guide/rfi-construction",
+      "https://www.rhumbix.com/blog/change-orders-construction-definitive-guide",
+      "https://www.workyard.com/construction-management/change-order",
+      "https://www.workyard.com/construction-management/construction-contract",
+      "https://procrewschedule.com/top-50-construction-terms-construction-professionals-should-know/",
+      "https://projul.com/construction-terms/",
+      "https://www.skylineconstruction.build/construction-terms-glossary/",
+      "https://contractorforeman.com/construction-terms/",
+      "https://4bt.us/wp-content/uploads/2020/02/The-Stages-and-Principles-of-Construction-Project.pdf",
+      "https://www.northernconstruction.com/blog/what-are-the-stages-of-a-construction-project/",
+      "https://www.csusm.edu/pdc/standards-and-regulations/buildingstandards/glossary-of-construction-terms.pdf",
+      "https://www.sior.com/docs/default-source/membership-docs/ConstructionProcessTerminology.pdf",
+      "https://www.jrmcm.com/jrm-news/mep-systems-in-construction/",
+      "https://hebs-group.co.uk/what-is-the-difference-between-a-tier-1-2-3-contractor/",
+      "https://scape.co.uk/news/tier-1-tier-2-and-tier-3-construction-contractors-whats-the-difference",
+      "https://www.scribd.com/document/703302129/Construction-Methodology",
+      "https://www.smartsheet.com/sites/default/files/2025-08/IC-Construction-Terminology-and-Acronyms-Cheat-Sheet_PDF.pdf"
+    ]
+  },
+
+  "platform_and_infrastructure": {
+    "claude_code": {
+      "url": "https://claude.ai/code",
+      "docs": "https://code.claude.com/docs/en/claude-code-on-the-web",
+      "api_keys": "https://platform.claude.com/settings/keys"
+    },
+    "github_repo": "https://github.com/wsparks0828/Anthropic-Leaked-Source-Code",
+    "walche_repo": "https://github.com/wsparks0828/walche-full.git",
+    "server_ip": "87.99.150.237",
+    "server_panel": "https://panel.your-server.de",
+    "server_customer": "https://customer.your-server.de"
+  },
+
+  "files_produced_this_session": [
+    "walche_tools/loop_audit.py",
+    "walche_tools/walche_deep_scan.py",
+    "walche_tools/walche_validate.py",
+    "walche_tools/walche_apply.py",
+    "walche_tools/fix_walche.py",
+    "CLAUDE.md",
+    "corpus/session_log.jsonl",
+    "corpus/initial_corpus_intelligence.json"
+  ],
+
+  "scratchpad_files_produced": [
+    "loop_audit.py",
+    "walche_deep_scan.py",
+    "walche_validate.py",
+    "walche_apply.py",
+    "fix_walche.py",
+    "healing_agent.py",
+    "langgraph_healing_graph.py",
+    "ppo_recovery_agent.py",
+    "reflection_memory.py",
+    "train_and_integrate_healing_system.py",
+    "extract_corpus.py"
+  ],
+
+  "code_blocks_produced": 88,
+
+  "constitutional_laws": {
+    "count": 11,
+    "file": "CLAUDE.md",
+    "key_constraints": [
+      "Absolute truth and honesty — no exceptions",
+      "Zero tolerance for dishonest language or fluff",
+      "Claude unauthorized to access agents/cloud/servers without explicit instruction",
+      "Mandatory token optimization and prompt caching",
+      "Council of 5 then Council of 9 for any token strategy changes",
+      "All session materials ingested into corpus",
+      "Documentation quality must survive professional code review"
+    ]
+  },
+
+  "summary": {
+    "total_external_urls": 89,
+    "total_walche_modules_confirmed": 8,
+    "total_walche_classes": 26,
+    "total_frameworks": 8,
+    "total_research_papers": 11,
+    "total_construction_sources": 23,
+    "total_files_produced": 8,
+    "total_code_blocks": 88,
+    "ingestion_quality": "HIGH — full 8.1MB session transcript mined"
+  }
+}
