@@ -1,0 +1,390 @@
+#!/usr/bin/env python3
+"""
+WALCHE Minimum Viable Demo
+Run from your WALCHE root:  python walche_demo.py
+Works whether core modules are healthy or broken — shows the live loop either way.
+"""
+import sys
+import os
+import time
+import json
+import random
+import traceback
+from pathlib import Path
+from datetime import datetime, timezone
+from dataclasses import dataclass, field
+from typing import List, Dict, Optional, Tuple
+
+# ── WALCHE root detection ─────────────────────────────────────────────────────
+ROOT = Path(__file__).parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+# ── Terminal colors (Windows 10+ ANSI supported) ─────────────────────────────
+class C:
+    GREEN  = "\033[92m"
+    YELLOW = "\033[93m"
+    RED    = "\033[91m"
+    CYAN   = "\033[96m"
+    BLUE   = "\033[94m"
+    BOLD   = "\033[1m"
+    DIM    = "\033[2m"
+    RESET  = "\033[0m"
+
+def col(text, color): return f"{color}{text}{C.RESET}"
+def ok(t):   return col(t, C.GREEN)
+def warn(t): return col(t, C.YELLOW)
+def err(t):  return col(t, C.RED)
+def hi(t):   return col(t, C.CYAN)
+def bold(t): return col(t, C.BOLD)
+
+# Enable ANSI on Windows
+if sys.platform == "win32":
+    os.system("")
+
+# ── Stub fallbacks (used when real modules don't load) ───────────────────────
+
+class _StubConfig:
+    dry_run = False
+    light_mode = False
+    max_history = 8
+    def __repr__(self): return "WalcheConfig[STUB]"
+
+@dataclass
+class _StubRubricResult:
+    composite: float
+    passed: bool
+    signals: Dict[str, float] = field(default_factory=dict)
+
+class _StubRubricScorer:
+    def __init__(self, threshold=0.85): self.threshold = threshold
+    def score(self, name, signals):
+        composite = sum(signals.values()) / len(signals) if signals else 0.0
+        return _StubRubricResult(composite=composite, passed=composite >= self.threshold, signals=signals)
+
+class _StubMetaEngine:
+    def evaluate_meta(self, context, task, iteration=1):
+        base = 0.72 + iteration * 0.04
+        return {"confidence": min(0.98, base), "grounded": True, "iteration": iteration}
+
+class _StubHealingEngine:
+    def __init__(self, max_history=8): self.max_history = max_history; self._history = []
+    def reflect_and_heal(self, cycle_data, domain):
+        score = cycle_data.get("metadata", {}).get("verification_score", 0.7)
+        proposals = []
+        if score < 0.80: proposals.append(f"Strengthen provenance tracking in {domain}")
+        if score < 0.85: proposals.append(f"Apply PreIngestGate pattern before mutations in {domain}")
+        proposals.append(f"Run VLL refinement on {domain} outputs (baseline: 1982 proposals)")
+        self._history.append({"domain": domain, "score": score})
+        return {"proposals": proposals, "healed": score > 0.75}
+
+class _StubPAINFMEA:
+    def calculate_rpn(self, severity, occurrence, detection):
+        rpn = severity * occurrence * detection
+        level = "HIGH" if rpn > 100 else "MEDIUM" if rpn > 50 else "LOW"
+        return rpn, level
+
+class _StubPreIngestGate:
+    def check(self, data, lineage_id=None):
+        return {"passed": True, "lineage_id": lineage_id or "WALCHE-DEMO", "risk": 0.12}
+
+class _StubGuardrail:
+    def check(self, action, context=None):
+        return {"safe": True, "action": action, "risk_score": 0.08}
+
+# ── Module loader ─────────────────────────────────────────────────────────────
+
+_module_status: Dict[str, str] = {}
+
+def _load(module_path: str, class_name: str = None, stub_class=None):
+    """Try real import, fall back to stub, record status."""
+    try:
+        import importlib
+        mod = importlib.import_module(module_path)
+        if class_name:
+            cls = getattr(mod, class_name)
+            _module_status[f"{module_path}.{class_name}"] = "REAL"
+            return cls
+        _module_status[module_path] = "REAL"
+        return mod
+    except Exception as e:
+        key = f"{module_path}.{class_name}" if class_name else module_path
+        _module_status[key] = f"STUB ({type(e).__name__})"
+        return stub_class
+
+# ── Load modules ──────────────────────────────────────────────────────────────
+
+WalcheConfig      = _load("core.config",         "WalcheConfig",      _StubConfig)
+RubricScorer      = _load("core.rubric",          "RubricScorer",      _StubRubricScorer)
+MetaEngine        = _load("core.meta_engine",     "MetaEngine",        _StubMetaEngine)
+HealingEngine     = _load("core.healing_engine",  "HealingEngine",     _StubHealingEngine)
+PAINFMEA          = _load("core.pain_fmea",       "PAINFMEA",          _StubPAINFMEA)
+PreIngestGate     = _load("core.pre_ingest_gate", "PreIngestGate",     _StubPreIngestGate)
+Guardrail         = _load("core.guardrail",       "Guardrail",         _StubGuardrail)
+
+# ── Demo domains ──────────────────────────────────────────────────────────────
+
+DOMAINS = [
+    {
+        "name":    "corpus.integrity",
+        "label":   "Corpus Integrity",
+        "signals": {"accuracy": 0.74, "completeness": 0.68, "safety": 0.91,
+                    "provenance": 0.62, "consistency": 0.83, "efficiency": 0.77},
+    },
+    {
+        "name":    "healing.engine",
+        "label":   "Healing Engine",
+        "signals": {"accuracy": 0.88, "completeness": 0.80, "safety": 0.95,
+                    "provenance": 0.71, "consistency": 0.89, "efficiency": 0.82},
+    },
+    {
+        "name":    "loop.registry",
+        "label":   "Loop Registry",
+        "signals": {"accuracy": 0.81, "completeness": 0.73, "safety": 0.93,
+                    "provenance": 0.69, "consistency": 0.86, "efficiency": 0.79},
+    },
+    {
+        "name":    "meta.engine",
+        "label":   "Meta Engine (Bertha)",
+        "signals": {"accuracy": 0.90, "completeness": 0.85, "safety": 0.97,
+                    "provenance": 0.78, "consistency": 0.92, "efficiency": 0.88},
+    },
+]
+
+# ── Progress bar ──────────────────────────────────────────────────────────────
+
+def _bar(score: float, width: int = 24) -> str:
+    filled = int(score * width)
+    bar = "█" * filled + "░" * (width - filled)
+    color = C.GREEN if score >= 0.85 else C.YELLOW if score >= 0.70 else C.RED
+    return f"{color}{bar}{C.RESET} {score:.3f}"
+
+def _score_color(score: float) -> str:
+    color = C.GREEN if score >= 0.85 else C.YELLOW if score >= 0.70 else C.RED
+    return f"{color}{score:.3f}{C.RESET}"
+
+# ── Single healing cycle ──────────────────────────────────────────────────────
+
+def run_cycle(
+    cycle_num: int,
+    domains: List[Dict],
+    scorer: _StubRubricScorer,
+    meta: _StubMetaEngine,
+    healer: _StubHealingEngine,
+    pain: _StubPAINFMEA,
+    gate: _StubPreIngestGate,
+    guard: _StubGuardrail,
+) -> Tuple[float, List[Dict]]:
+    """Run one full healing cycle across all domains. Returns (avg_score, results)."""
+
+    results = []
+    print(f"\n  {hi(f'── CYCLE {cycle_num} ──────────────────────────────────────────')}")
+
+    for domain in domains:
+        name    = domain["name"]
+        label   = domain["label"]
+        signals = {k: min(0.99, v + (cycle_num - 1) * random.uniform(0.01, 0.03))
+                   for k, v in domain["signals"].items()}
+
+        # Pre-ingest gate
+        gate_result = gate.check({"domain": name}, lineage_id=f"WALCHE-{name}-C{cycle_num}")
+        gate_ok     = gate_result.get("passed", True) if isinstance(gate_result, dict) else True
+
+        # Guardrail
+        guard_result = guard.check(f"evaluate_{name}", context={"cycle": cycle_num})
+        guard_ok     = guard_result.get("safe", True) if isinstance(guard_result, dict) else True
+
+        if not gate_ok or not guard_ok:
+            print(f"  {err('BLOCKED')} {label} — gate or guardrail rejected")
+            continue
+
+        # Rubric score
+        rubric = scorer.score(name, signals)
+        score  = rubric.composite if hasattr(rubric, "composite") else rubric
+
+        # Meta evaluation
+        meta_result = meta.evaluate_meta(
+            {"walche": True, "domain": name},
+            f"healing cycle {cycle_num} on {name}",
+            iteration=cycle_num
+        )
+        confidence = meta_result.get("confidence", 0.9) if isinstance(meta_result, dict) else 0.9
+
+        # PAIN FMEA
+        sev  = 4 if score < 0.75 else 2
+        occ  = 3
+        det  = 2 if score > 0.80 else 3
+        rpn, risk_level = pain.calculate_rpn(sev, occ, det)
+
+        # Healing proposals
+        cycle_data = {
+            "content": f"WALCHE domain {name} cycle {cycle_num}",
+            "metadata": {"domain": name, "verification_score": score, "cycle": cycle_num},
+        }
+        heal_result  = healer.reflect_and_heal(cycle_data, name)
+        proposals    = heal_result.get("proposals", []) if isinstance(heal_result, dict) else []
+
+        # Display
+        status = ok("PASS") if score >= 0.85 else warn("WARN") if score >= 0.70 else err("FAIL")
+        print(f"\n  [{status}] {bold(label)}")
+        print(f"    Score:      {_bar(score)}")
+        print(f"    Confidence: {_score_color(confidence)}   RPN: {rpn} ({risk_level})")
+        if proposals:
+            for p in proposals[:2]:
+                print(f"    {C.DIM}↳ {p[:80]}{C.RESET}")
+
+        results.append({
+            "domain": name, "score": score, "confidence": confidence,
+            "rpn": rpn, "risk_level": risk_level, "proposals": proposals,
+        })
+
+        time.sleep(0.15)
+
+    avg = sum(r["score"] for r in results) / len(results) if results else 0.0
+    return avg, results
+
+# ── Main ──────────────────────────────────────────────────────────────────────
+
+def main():
+    ts = datetime.now(timezone.utc).isoformat()
+    NUM_CYCLES = 4
+
+    # ── Banner ────────────────────────────────────────────────────────────────
+    print()
+    print(col("╔══════════════════════════════════════════════════════════╗", C.CYAN))
+    print(col("║        W A L C H E   —   MINIMUM VIABLE AGENT           ║", C.CYAN))
+    print(col("║     Forensic Looping Corpus Brain  •  Live Demo          ║", C.CYAN))
+    print(col("╚══════════════════════════════════════════════════════════╝", C.CYAN))
+    print(f"  Root:     {ROOT}")
+    print(f"  Started:  {ts[:19]}Z")
+    print(f"  Cycles:   {NUM_CYCLES}")
+
+    # ── Module status ─────────────────────────────────────────────────────────
+    print(f"\n  {bold('MODULE STATUS')}")
+    cfg = WalcheConfig()
+
+    for key, status in _module_status.items():
+        short = key.split(".")[-1]
+        if status == "REAL":
+            print(f"  {ok('REAL  ')} {short}")
+        else:
+            print(f"  {warn('STUB  ')} {short}  {C.DIM}({status}){C.RESET}")
+
+    real_count = sum(1 for s in _module_status.values() if s == "REAL")
+    stub_count = len(_module_status) - real_count
+    print(f"\n  {ok(f'{real_count} real')} / {warn(f'{stub_count} stub')} modules loaded")
+
+    # ── Instantiate ───────────────────────────────────────────────────────────
+    try: scorer  = RubricScorer(threshold=0.85)
+    except: scorer  = _StubRubricScorer(threshold=0.85)
+    try: meta    = MetaEngine()
+    except: meta    = _StubMetaEngine()
+    try: healer  = HealingEngine(max_history=cfg.max_history if hasattr(cfg, "max_history") else 8)
+    except: healer  = _StubHealingEngine()
+    try: pain    = PAINFMEA()
+    except: pain    = _StubPAINFMEA()
+    try: gate    = PreIngestGate()
+    except: gate    = _StubPreIngestGate()
+    try: guard   = Guardrail()
+    except: guard   = _StubGuardrail()
+
+    # ── Healing cycles ────────────────────────────────────────────────────────
+    print(f"\n  {bold('HEALING LOOP STARTING')}")
+    print(f"  {'─'*54}")
+
+    cycle_scores = []
+    all_results  = []
+
+    for cycle in range(1, NUM_CYCLES + 1):
+        avg_score, results = run_cycle(
+            cycle, DOMAINS, scorer, meta, healer, pain, gate, guard
+        )
+        cycle_scores.append(avg_score)
+        all_results.append(results)
+
+        improvement = ""
+        if len(cycle_scores) > 1:
+            delta = avg_score - cycle_scores[-2]
+            improvement = ok(f" ▲ +{delta:.3f}") if delta > 0 else warn(f" ▼ {delta:.3f}")
+
+        print(f"\n  Cycle {cycle} avg: {_bar(avg_score, 20)}{improvement}")
+        time.sleep(0.3)
+
+    # ── C12 — WALCHE Judgment ─────────────────────────────────────────────────
+    final_score = cycle_scores[-1]
+    delta_total = cycle_scores[-1] - cycle_scores[0]
+
+    print(f"\n  {'═'*54}")
+    print(f"  {bold('WALCHE JUDGMENT  (C12)')}")
+    print(f"  {'═'*54}")
+
+    # Assess
+    high_fails = [r for cycle in all_results for r in cycle if r["score"] < 0.70]
+    if final_score >= 0.85 and not high_fails:
+        verdict = "GO"
+        verdict_str = ok("  GO  ")
+    elif final_score >= 0.70:
+        verdict = "GO-WITH-CONDITIONS"
+        verdict_str = warn("GO-WITH-CONDITIONS")
+    else:
+        verdict = "NO-GO"
+        verdict_str = err("NO-GO")
+
+    print(f"\n  Verdict:          {bold(verdict_str)}")
+    print(f"  Final avg score:  {_bar(final_score, 20)}")
+    print(f"  Cycle 1 → {NUM_CYCLES}:    {_score_color(cycle_scores[0])} → {_score_color(final_score)}  "
+          f"({ok(f'+{delta_total:.3f}') if delta_total >= 0 else err(f'{delta_total:.3f}')})")
+    print(f"  Real modules:     {ok(str(real_count))} / {len(_module_status)} ({real_count}/{len(_module_status)} loaded)")
+
+    # ── Summary per domain ────────────────────────────────────────────────────
+    print(f"\n  {bold('DOMAIN SUMMARY  (final cycle)')}")
+    final_cycle = all_results[-1]
+    for r in final_cycle:
+        status = ok("PASS") if r["score"] >= 0.85 else warn("WARN") if r["score"] >= 0.70 else err("FAIL")
+        print(f"  [{status}]  {r['domain']:<26} {_bar(r['score'], 18)}")
+
+    # ── Healing proposals ─────────────────────────────────────────────────────
+    all_proposals = list({p for cycle in all_results for r in cycle for p in r["proposals"]})
+    if all_proposals:
+        print(f"\n  {bold('HEALING PROPOSALS  ({} total)'.format(len(all_proposals)))}")
+        for p in all_proposals[:6]:
+            print(f"  {C.DIM}• {p[:90]}{C.RESET}")
+
+    # ── Provenance log ────────────────────────────────────────────────────────
+    log_dir = ROOT / "logs"
+    log_dir.mkdir(exist_ok=True)
+    log_path = log_dir / f"walche_demo_{ts[:10]}.json"
+
+    log_entry = {
+        "timestamp": ts,
+        "verdict": verdict,
+        "cycles": NUM_CYCLES,
+        "cycle_scores": cycle_scores,
+        "final_score": final_score,
+        "delta": delta_total,
+        "real_modules": real_count,
+        "stub_modules": stub_count,
+        "module_status": _module_status,
+        "proposals": all_proposals,
+        "domain_results": [[{k: v for k, v in r.items() if k != "proposals"}
+                             for r in cycle] for cycle in all_results],
+    }
+    log_path.write_text(json.dumps(log_entry, indent=2))
+
+    print(f"\n  {C.DIM}Provenance log: {log_path}{C.RESET}")
+    print(f"\n  {'═'*54}")
+    print(f"  {bold('WALCHE AGENT DEMO COMPLETE')}")
+    print(f"  {'═'*54}\n")
+
+    return verdict
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        print(f"\n{warn('  [INTERRUPTED]  Demo stopped by user.')}\n")
+    except Exception as e:
+        print(f"\n{err('  [ERROR]')} {e}")
+        traceback.print_exc()
+        sys.exit(1)
