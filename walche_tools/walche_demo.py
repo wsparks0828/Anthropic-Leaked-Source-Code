@@ -189,7 +189,7 @@ def run_cycle(
         # Pre-ingest gate — discover method name at runtime
         gate_ok = True
         gate_result = {}
-        for _gate_method in ("check", "gate", "validate", "run", "evaluate", "ingest"):
+        for _gate_method in ("evaluate", "check", "gate", "validate", "run", "ingest"):
             if hasattr(gate, _gate_method):
                 try:
                     _fn = getattr(gate, _gate_method)
@@ -277,13 +277,14 @@ def run_cycle(
         print(f"\n  [{status}] {bold(label)}")
         print(f"    Score:      {_bar(score)}")
         print(f"    Confidence: {_score_color(confidence)}   RPN: {rpn} ({risk_level})")
-        if proposals:
-            for p in proposals[:2]:
+        proposals_str = [str(p) for p in proposals]
+        if proposals_str:
+            for p in proposals_str[:2]:
                 print(f"    {C.DIM}↳ {p[:80]}{C.RESET}")
 
         results.append({
             "domain": name, "score": score, "confidence": confidence,
-            "rpn": rpn, "risk_level": risk_level, "proposals": proposals,
+            "rpn": rpn, "risk_level": risk_level, "proposals": proposals_str,
         })
 
         time.sleep(0.15)
@@ -392,7 +393,13 @@ def main():
         print(f"  [{status}]  {r['domain']:<26} {_bar(r['score'], 18)}")
 
     # ── Healing proposals ─────────────────────────────────────────────────────
-    all_proposals = list({p for cycle in all_results for r in cycle for p in r["proposals"]})
+    _seen, all_proposals = set(), []
+    for cycle in all_results:
+        for r in cycle:
+            for p in r["proposals"]:
+                if p not in _seen:
+                    _seen.add(p)
+                    all_proposals.append(p)
     if all_proposals:
         print(f"\n  {bold('HEALING PROPOSALS  ({} total)'.format(len(all_proposals)))}")
         for p in all_proposals[:6]:
