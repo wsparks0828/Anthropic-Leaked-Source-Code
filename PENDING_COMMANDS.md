@@ -1,6 +1,6 @@
 # WALCHE — Pending Commands Queue
 
-**Last updated:** 2026-07-04 (added Queue 4B — OSMODA paths)  
+**Last updated:** 2026-07-04 (added Queue 7 — Operator Console dashboard)  
 **Run from:** `C:\Users\wspar\Desktop\WALCHE_FULL_20260630_214341\WALCHE\`
 
 ---
@@ -618,6 +618,51 @@ else:
 
 ---
 
+## QUEUE 7 — Operator Console Dashboard (space/universe UI)
+
+```powershell
+# Download the two new files from the repo into your WALCHE walche_tools/ directory
+Invoke-WebRequest `
+  -Uri "https://raw.githubusercontent.com/wsparks0828/Anthropic-Leaked-Source-Code/claude/session-01ht1jmqadwsdphy19maevvl-7qlsw7/walche_tools/walche_server.py" `
+  -OutFile "walche_tools\walche_server.py" `
+  -SkipCertificateCheck
+
+Invoke-WebRequest `
+  -Uri "https://raw.githubusercontent.com/wsparks0828/Anthropic-Leaked-Source-Code/claude/session-01ht1jmqadwsdphy19maevvl-7qlsw7/walche_tools/walche_dashboard.html" `
+  -OutFile "walche_tools\walche_dashboard.html" `
+  -SkipCertificateCheck
+
+# Start the server (default port 8765, localhost only)
+python walche_tools\walche_server.py
+
+# Then open your browser to:
+#   http://localhost:8765
+#
+# Custom port or host:
+#   python walche_tools\walche_server.py --port 9000 --host 0.0.0.0
+```
+
+**What it does:**
+- `walche_server.py` — zero-pip-dependency HTTP server (stdlib only). Serves the dashboard at
+  `GET /` and exposes four live data endpoints:
+  - `GET /api/status`  — runs `walche_status.py --json`, returns full system state
+  - `GET /api/log`     — latest `logs/walche_demo_*.json` raw run log
+  - `GET /api/council` — last 20 `logs/grand_council_decisions.jsonl` entries
+  - `GET /api/health`  — `{"ok": true}` heartbeat
+- `walche_dashboard.html` — full-screen space/universe visualization (no CDN, no npm):
+  - Animated starfield canvas backdrop
+  - SVG node graph: central WALCHE CORE golden orb → 4 domain clusters (corpus.integrity,
+    healing.engine, loop.registry, meta.engine) → 9 module leaf nodes
+  - VLL and Grand Council nodes at top/bottom
+  - All nodes colored live by score: green ≥0.85 / amber ≥0.70 / red <0.70
+  - Click any node → frosted-glass detail panel slides in from right
+  - Bottom KPI bar: Final Score · Verdict badge · Modules · Corpus Entries · Baseline · Last Run
+  - Auto-refreshes every 30 seconds
+
+**Prerequisites:** `walche_status.py` must be in `walche_tools/` (it already is — shipped with WALCHE core).
+
+---
+
 ## QUEUE 6 — Run full pipeline after all patches
 
 ```powershell
@@ -647,6 +692,7 @@ python run_system.py --phase full
 | 4K — AFC + poisoning + safety | PENDING | PoisonedRAG arXiv:2402.07867 + Hubinger arXiv:2401.05566 PRIORITY 1; FActScore/PRM/CoT papers; ClaimBuster+Botometer tool docs |
 | 5 — Explore provenance | PENDING | Run after Queue 1 generates new log |
 | 6 — Full pipeline | PENDING | Run last, after all above complete |
+| 7 — Operator Console | PENDING | Download walche_server.py + walche_dashboard.html, run server, open http://localhost:8765 |
 
 ---
 
