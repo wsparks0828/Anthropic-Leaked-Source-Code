@@ -1,15 +1,17 @@
-"""tools/loop_audit.py -- LOOP-ES audit, WALCHE standalone. C0-C12 + L1-L5."""
+"""walche_tools/loop_audit.py -- LOOP-ES audit, WALCHE standalone. C0-C12 + L1-L5."""
+import ast
 import importlib
 import importlib.util
+import json
+import os
 import subprocess
-import py_compile
 import sys
+from dataclasses import dataclass, field, asdict
 from datetime import datetime, timezone
 from pathlib import Path
-from dataclasses import dataclass, field
 from typing import List, Optional
 
-ROOT = Path(__file__).parent.parent
+ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
@@ -70,16 +72,25 @@ def _color(text: str, status: str) -> str:
 # ─── C0: Syntax ──────────────────────────────────────────────────────────────
 
 def c0_syntax() -> Check:
-    """Syntax-check all Python files under ROOT (excluding venv/node_modules)."""
+    """Syntax-check WALCHE's own Python files (walche_tools/, core/, backend/)."""
     errors = []
-    exclude = {"venv", "node_modules", ".git", "__pycache__", "site-packages"}
-    for py_file in ROOT.rglob("*.py"):
-        if any(part in exclude for part in py_file.parts):
-            continue
-        try:
-            py_compile.compile(str(py_file), doraise=True)
-        except py_compile.PyCompileError as e:
-            errors.append(str(e))
+    exclude = {"venv", ".venv", "node_modules", ".git", "__pycache__", "site-packages"}
+    # Scoped to WALCHE's own directories, not the whole repo root — this repo
+    # also hosts unrelated projects (a Node app, a leaked-source TS tree).
+    scan_dirs = [ROOT / d for d in ("walche_tools", "core", "backend") if (ROOT / d).is_dir()]
+    for scan_dir in scan_dirs:
+        for py_file in scan_dir.rglob("*.py"):
+            if any(part in exclude for part in py_file.parts):
+                continue
+            try:
+                # ast.parse (not py_compile) — no __pycache__ bytecode written
+                # as a side effect of a read-only audit, and OSError (e.g. a
+                # read-only filesystem) doesn't get miscategorized as a
+                # syntax error.
+                ast.parse(py_file.read_text(encoding="utf-8", errors="replace"),
+                          filename=str(py_file))
+            except SyntaxError as e:
+                errors.append(f"{py_file}: {e}")
     if errors:
         return Check("C0", "Syntax Check", "FAIL", "HIGH",
                      f"{len(errors)} syntax error(s): " + "; ".join(errors[:3]), 0.0)
@@ -186,7 +197,9 @@ def c5_rubric_scorer() -> Check:
                              f"Import failed: {err2}", 0.0)
             return Check("C5", "Rubric Scorer", "WARN", "MEDIUM",
                          "core.rubric OK but no RubricScorer/Rubric class found", 0.6)
-        cls = cls  # Rubric class found
+        # `cls` was already reassigned to the Rubric class by the tuple
+        # unpack above (`cls, err_rb = _try_import(..., "Rubric")`) — no
+        # further action needed here.
     inst, err3 = _safe_instantiate(cls)
     if err3:
         return Check("C5", "Rubric Scorer", "WARN", "MEDIUM",
@@ -276,10 +289,15 @@ def c9_self_tests() -> Check:
         ROOT / "backend" / "tests",
     ]
     test_files = []
+    seen_paths = set()
     for td in test_paths:
         if td.exists():
-            test_files.extend(td.glob("test_*.py"))
-            test_files.extend(td.glob("*_test.py"))
+            # A file matching both globs (e.g. test_foo_test.py) would
+            # otherwise be counted and run twice.
+            for f in list(td.glob("test_*.py")) + list(td.glob("*_test.py")):
+                if f not in seen_paths:
+                    seen_paths.add(f)
+                    test_files.append(f)
     if not test_files:
         return Check("C9", "Self-Tests", "SKIP", "LOW",
                      "No test files found", 1.0)
@@ -339,7 +357,9 @@ def c11_arch_health() -> Check:
         if not (ROOT / d).exists():
             issues.append(f"missing {d}/")
     venv_ok = (ROOT / "venv" / "Scripts" / "python.exe").exists() \
-           or (ROOT / "venv" / "bin" / "python").exists()
+           or (ROOT / "venv" / "bin" / "python").exists() \
+           or (ROOT / ".venv" / "Scripts" / "python.exe").exists() \
+           or (ROOT / ".venv" / "bin" / "python").exists()
     if not venv_ok:
         issues.append("venv not found")
     py_count = sum(
@@ -530,6 +550,21 @@ def run_audit(lineage_id: Optional[str] = None) -> AuditReport:
     print(f"  Composite: {composite:.2f}  |  FAIL: {len(all_fails)}  WARN: {len(all_warns)}")
     print(f"{'='*62}\n")
 
+    # Persist — an audit that only prints to stdout leaves no provenance
+    # trail and nothing downstream can gate on it (Law 8: nothing discarded
+    # without explicit instruction).
+    try:
+        log_dir = ROOT / "logs"
+        log_dir.mkdir(parents=True, exist_ok=True)
+        ts_name = report.timestamp[:19].replace(":", "").replace("T", "_")
+        out_path = log_dir / f"loop_audit_{ts_name}.json"
+        _tmp = out_path.with_suffix(".tmp")
+        _tmp.write_text(json.dumps(asdict(report), indent=2, ensure_ascii=False), encoding="utf-8")
+        os.replace(_tmp, out_path)
+        print(f"  Audit report: {out_path}\n")
+    except Exception as e:
+        print(f"  [WARN] Could not write audit report: {e}\n")
+
     return report
 
 
@@ -541,4 +576,10 @@ if __name__ == "__main__":
     parser.add_argument("--lineage-id", default=None,
                         help="Custom lineage ID for this audit run")
     parsed = parser.parse_args()
-    run_audit(lineage_id=parsed.lineage_id)
+    result = run_audit(lineage_id=parsed.lineage_id)
+    # Exit non-zero so CI/callers can actually gate on the result instead of
+    # this always succeeding regardless of NO-GO.
+    if result.overall_status == "NO-GO":
+        sys.exit(1)
+    elif result.overall_status == "GO-WITH-CONDITIONS":
+        sys.exit(2)
