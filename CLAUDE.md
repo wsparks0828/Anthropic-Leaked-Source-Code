@@ -158,7 +158,9 @@ Claude is **UNAUTHORIZED** to:
 - **Location (local):** `C:\Users\wspar\Desktop\WALCHE_FULL_20260630_214341`
 - **Status:** Core engine exists — loop registry, MetaEngine, HealingEngine, Guardrail, RubricScorer, PAIN FMEA, PreIngestGate, VLL
 - **Immediate goal:** Complete the build — make the first true working agent the owner can see running
-- **Tools committed:** `walche_tools/` in this repo — loop_audit, walche_deep_scan, walche_validate, walche_apply, fix_walche
+- **Tools committed:** `walche_tools/` in this repo — loop_audit, walche_deep_scan, fix_walche
+- **Note (2026-07-04):** walche_apply.py and walche_validate.py were removed from this repo — their own docstrings stated they live in `C:\EPM-STARK\tools\`, violating the standalone constraint below. Content remains recoverable from git history if needed for manual relocation to EPM-STARK.
+- **Note (2026-07-04):** `core/` and `backend/` do not exist in this repo and are not accessible from this remote session (they exist only on the owner's Windows machine). Every WALCHE tool here runs in stub/fallback mode until the owner copies `core/`/`backend/` into this repo.
 
 ### EPM-STARK
 - **Location (local):** `C:\EPM-STARK`

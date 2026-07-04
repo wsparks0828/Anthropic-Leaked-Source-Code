@@ -430,7 +430,7 @@ def scan_test_gaps() -> List[Issue]:
 
 def scan_orphan_scripts() -> List[Issue]:
     issues = []
-    known_entrypoints = {"run_system", "loop_audit", "walche_validate", "walche_apply",
+    known_entrypoints = {"run_system", "loop_audit",
                          "walche_deep_scan", "__init__", "conftest"}
     orphan_prefixes = ("fix_", "temp_", "patch_", "diag_", "test_", "auto_")
     for f in (ROOT).glob("*.py"):
