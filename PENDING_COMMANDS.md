@@ -249,6 +249,126 @@ Write-Host "Then run: python walche_tools\corpus_ingest.py --logs `"$cogDir`" --
 
 ---
 
+## QUEUE 4F — Download Neuro-Symbolic AI (NeSy) papers and clone NeSy frameworks
+
+> **Genre:** AI_Fundamentals_to_Advanced_Practices_Repos_Issues_Testing  
+> Academic + framework grounding for WALCHE's Type 2-3 NeSy classification (Kautz taxonomy).  
+> PAIN-FMEA = symbolic over neural; RubricScorer = symbolic gate; VLL = Kautz Type 3 policy.
+
+```powershell
+$nesyDir = "C:\Users\wspar\OneDrive\Microsoft Copilot Chat Files\Desktop\OSMODA\AI_Fundamentals_to_Advanced_Practices_Repos_Issues_Testing\neurosymbolic_ai"
+New-Item -ItemType Directory -Path $nesyDir -Force | Out-Null
+
+# Garcez & Lamb 2023 — Neuro-Symbolic AI: The 3rd Wave (arXiv:2012.05876)
+Invoke-WebRequest -Uri "https://arxiv.org/pdf/2012.05876" -OutFile "$nesyDir\garcez_lamb_2023_nesy_third_wave_arXiv2012.05876.pdf"
+
+# Logic Tensor Networks (LTN) — symbolic constraints as differentiable layers
+# (Badreddine et al., Artificial Intelligence 2022)
+Invoke-WebRequest -Uri "https://arxiv.org/pdf/2012.13421" -OutFile "$nesyDir\badreddine_2022_ltn_arXiv2012.13421.pdf"
+
+# Clone NeSy framework repos
+$repoDir = "C:\Users\wspar\OneDrive\Microsoft Copilot Chat Files\Desktop\OSMODA\AI_Fundamentals_to_Advanced_Practices_Repos_Issues_Testing"
+cd $repoDir
+
+if (!(Test-Path "scallop")) {
+    git clone --depth 1 https://github.com/scallop-lang/scallop scallop
+}
+if (!(Test-Path "LTN_pytorch")) {
+    git clone --depth 1 https://github.com/logictensornetworks/LTN_pytorch LTN_pytorch
+}
+if (!(Test-Path "awesome-neurosymbolic-ai")) {
+    git clone --depth 1 https://github.com/LUMII-Syslab/awesome-neurosymbolic-ai awesome-neurosymbolic-ai
+}
+
+Write-Host "NeSy papers downloaded to $nesyDir"
+Write-Host "Then run: python walche_tools\corpus_ingest.py --logs `"$nesyDir`" --output corpus\nesy_kb.json"
+Write-Host "And:      python walche_tools\corpus_ingest.py --scan `"$repoDir\scallop`" --output corpus\nesy_kb.json"
+```
+
+**Note on Colelough 2024, Nawaz 2025, Lu 2024:** Search Google Scholar / arXiv for exact DOIs — titles logged in `corpus/pending_ingestion_sources.json` entries `colelough_nesy_review_2024`, `nawaz_nesy_review_2025`, `lu_nesy_reliable_ai_2024`. Acquire via institutional access or author preprints.
+
+---
+
+## QUEUE 4G — Download RAG / ingestion pipeline documentation (batch 22)
+
+> **Genre:** AI_Fundamentals_to_Advanced_Practices_Repos_Issues_Testing  
+> Production ingestion patterns: chunking, parsing, embedding, vector DB — directly applicable  
+> to WALCHE corpus_ingest.py pipeline hardening and CEVIP PreIngest phase.
+
+```powershell
+$ragDir = "C:\Users\wspar\OneDrive\Microsoft Copilot Chat Files\Desktop\OSMODA\AI_Fundamentals_to_Advanced_Practices_Repos_Issues_Testing\rag_ingestion_pipelines"
+New-Item -ItemType Directory -Path $ragDir -Force | Out-Null
+
+# Clone LlamaIndex (core RAG framework — data connectors, node parsers, ingestion pipelines)
+$repoDir = "C:\Users\wspar\OneDrive\Microsoft Copilot Chat Files\Desktop\OSMODA\AI_Fundamentals_to_Advanced_Practices_Repos_Issues_Testing"
+if (!(Test-Path "$repoDir\llama_index")) {
+    git clone --depth 1 https://github.com/run-llama/llama_index "$repoDir\llama_index"
+}
+
+# Clone LangChain (document loaders, text splitters, ingestion pipelines)
+if (!(Test-Path "$repoDir\langchain")) {
+    git clone --depth 1 https://github.com/langchain-ai/langchain "$repoDir\langchain"
+}
+
+# Clone Unstructured (robust PDF/table/layout parsing)
+if (!(Test-Path "$repoDir\unstructured")) {
+    git clone --depth 1 https://github.com/Unstructured-IO/unstructured "$repoDir\unstructured"
+}
+
+Write-Host "RAG/ingestion repos cloned."
+Write-Host "Run corpus_ingest.py --scan on each repo, or use --logs on exported docs."
+```
+
+**Online documentation to review (no download needed — reference during corpus_ingest.py hardening):**
+- LlamaIndex ingestion pipeline docs: https://docs.llamaindex.ai/
+- Pinecone chunking strategies: https://www.pinecone.io/learn/chunking-strategies/
+- LangChain text splitters: https://python.langchain.com/
+- Unstructured.io parsing: https://unstructured.io/
+
+---
+
+## QUEUE 4H — Download Topological Deep Learning (TDL) papers and clone TDL libraries
+
+> **Genre:** AI_Fundamentals_to_Advanced_Practices_Repos_Issues_Testing  
+> TDL provides persistent homology, topological invariants, and higher-order relational modeling —  
+> upgrade path for WALCHE's CEVIP Cross-Ensemble phase (corpus graph anomaly detection).
+
+```powershell
+$tdlDir = "C:\Users\wspar\OneDrive\Microsoft Copilot Chat Files\Desktop\OSMODA\AI_Fundamentals_to_Advanced_Practices_Repos_Issues_Testing\topological_dl"
+New-Item -ItemType Directory -Path $tdlDir -Force | Out-Null
+$tdlLibs = "$tdlDir\libs"
+New-Item -ItemType Directory -Path $tdlLibs -Force | Out-Null
+
+# Zia et al. (2023) — Topological Deep Learning: A Review (arXiv:2302.03836)
+Invoke-WebRequest -Uri "https://arxiv.org/pdf/2302.03836" -OutFile "$tdlDir\zia_2023_tdl_review_arXiv2302.03836.pdf"
+
+# Hensel et al. (2021) — Survey of Topological Machine Learning Methods (Frontiers in AI)
+# DOI: 10.3389/frai.2021.681108 — open access PDF
+Invoke-WebRequest -Uri "https://www.frontiersin.org/articles/10.3389/frai.2021.681108/pdf" -OutFile "$tdlDir\hensel_2021_topological_ml_survey_frai681108.pdf"
+
+# Clone TDL framework repos
+$repoDir = "C:\Users\wspar\OneDrive\Microsoft Copilot Chat Files\Desktop\OSMODA\AI_Fundamentals_to_Advanced_Practices_Repos_Issues_Testing"
+
+if (!(Test-Path "$tdlLibs\giotto-tda")) {
+    git clone --depth 1 https://github.com/giotto-ai/giotto-tda "$tdlLibs\giotto-tda"
+}
+if (!(Test-Path "$tdlLibs\TopoModelX")) {
+    git clone --depth 1 https://github.com/pyt-team/TopoModelX "$tdlLibs\TopoModelX"
+}
+if (!(Test-Path "$tdlLibs\TopoNetX")) {
+    git clone --depth 1 https://github.com/pyt-team/TopoNetX "$tdlLibs\TopoNetX"
+}
+
+Write-Host "TDL papers downloaded to $tdlDir"
+Write-Host "TDL libraries cloned to $tdlLibs"
+Write-Host "Then run: python walche_tools\corpus_ingest.py --logs `"$tdlDir`" --output corpus\ai_kb.json"
+Write-Host "And:      python walche_tools\corpus_ingest.py --scan `"$tdlLibs`" --output corpus\ai_kb.json"
+```
+
+**Note on Papamarkou et al. position paper:** Search arXiv for 'Papamarkou topological deep learning relational' — arXiv ID not yet confirmed. Also: GUDHI (https://gudhi.inria.fr/) is large; pull only the Python docs/examples if disk is a concern.
+
+---
+
 ## QUEUE 5 — Explore provenance log
 
 ```powershell
@@ -289,6 +409,9 @@ python run_system.py --phase full
 | 4C — Clone repos (CS+AI) | PENDING | linux, llvm, riscv-isa-manual, transformers, datasets, lm-eval-harness — run before 4B |
 | 4D — US Code XML (Legal) | PENDING | usc26.xml.zip + usc28.xml.zip from uscode.house.gov PL 119/99 |
 | 4E — Cognitive arch PDFs | PENDING | Kotseruba survey + MemGPT + Reflexion arXiv PDFs → cognitive_architectures/ subfolder |
+| 4F — NeSy PDFs + repos | PENDING | Garcez arXiv:2012.05876, LTN arXiv:2012.13421; clone scallop, LTN_pytorch, awesome-neurosymbolic-ai |
+| 4G — RAG ingestion repos | PENDING | Clone llama_index, langchain, unstructured; hardens CEVIP PreIngest phase |
+| 4H — TDL papers + libs | PENDING | Zia arXiv:2302.03836, Hensel Frontiers 2021; clone giotto-tda, TopoModelX, TopoNetX |
 | 5 — Explore provenance | PENDING | Run after Queue 1 generates new log |
 | 6 — Full pipeline | PENDING | Run last, after all above complete |
 
