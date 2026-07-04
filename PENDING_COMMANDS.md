@@ -618,48 +618,74 @@ else:
 
 ---
 
-## QUEUE 7 — Operator Console Dashboard (space/universe UI)
+## QUEUE 7 — Operator Console Dashboard (space/universe UI + voice commands)
 
 ```powershell
-# Download the two new files from the repo into your WALCHE walche_tools/ directory
+# ── Step 1: Download all three files into your WALCHE walche_tools\ directory ──
+# Run from: C:\Users\wspar\Desktop\WALCHE_FULL_20260630_214341\WALCHE\
+
+$branch = "claude/session-01ht1jmqadwsdphy19maevvl-7qlsw7"
+$base   = "https://raw.githubusercontent.com/wsparks0828/Anthropic-Leaked-Source-Code/$branch/walche_tools"
+
+# HTTP server (serves dashboard + API endpoints)
 Invoke-WebRequest `
-  -Uri "https://raw.githubusercontent.com/wsparks0828/Anthropic-Leaked-Source-Code/claude/session-01ht1jmqadwsdphy19maevvl-7qlsw7/walche_tools/walche_server.py" `
+  -Uri "$base/walche_server.py" `
   -OutFile "walche_tools\walche_server.py" `
   -SkipCertificateCheck
 
+# Dashboard HTML (space/universe UI — voice, animations, live data)
 Invoke-WebRequest `
-  -Uri "https://raw.githubusercontent.com/wsparks0828/Anthropic-Leaked-Source-Code/claude/session-01ht1jmqadwsdphy19maevvl-7qlsw7/walche_tools/walche_dashboard.html" `
+  -Uri "$base/walche_dashboard.html" `
   -OutFile "walche_tools\walche_dashboard.html" `
   -SkipCertificateCheck
 
-# Start the server (default port 8765, localhost only)
+# Status script — PATCHED this session (adds generated_at to JSON output)
+Invoke-WebRequest `
+  -Uri "$base/walche_status.py" `
+  -OutFile "walche_tools\walche_status.py" `
+  -SkipCertificateCheck
+
+# ── Step 2: Start the server ──────────────────────────────────────────────────
 python walche_tools\walche_server.py
 
-# Then open your browser to:
-#   http://localhost:8765
-#
-# Custom port or host:
-#   python walche_tools\walche_server.py --port 9000 --host 0.0.0.0
+# ── Step 3: Open the dashboard ────────────────────────────────────────────────
+Start-Process "http://localhost:8765"
+
+# ── Optional: custom port or network-accessible host ─────────────────────────
+# python walche_tools\walche_server.py --port 9000 --host 0.0.0.0
 ```
 
 **What it does:**
-- `walche_server.py` — zero-pip-dependency HTTP server (stdlib only). Serves the dashboard at
-  `GET /` and exposes four live data endpoints:
-  - `GET /api/status`  — runs `walche_status.py --json`, returns full system state
-  - `GET /api/log`     — latest `logs/walche_demo_*.json` raw run log
-  - `GET /api/council` — last 20 `logs/grand_council_decisions.jsonl` entries
-  - `GET /api/health`  — `{"ok": true}` heartbeat
-- `walche_dashboard.html` — full-screen space/universe visualization (no CDN, no npm):
-  - Animated starfield canvas backdrop
-  - SVG node graph: central WALCHE CORE golden orb → 4 domain clusters (corpus.integrity,
-    healing.engine, loop.registry, meta.engine) → 9 module leaf nodes
-  - VLL and Grand Council nodes at top/bottom
-  - All nodes colored live by score: green ≥0.85 / amber ≥0.70 / red <0.70
-  - Click any node → frosted-glass detail panel slides in from right
-  - Bottom KPI bar: Final Score · Verdict badge · Modules · Corpus Entries · Baseline · Last Run
-  - Auto-refreshes every 30 seconds
 
-**Prerequisites:** `walche_status.py` must be in `walche_tools/` (it already is — shipped with WALCHE core).
+`walche_server.py` — zero-pip stdlib HTTP server. Serves the dashboard at `GET /` and exposes:
+- `GET /api/status`  → runs `walche_status.py --json` (full system state)
+- `GET /api/log`     → latest `logs/walche_demo_*.json` raw run log
+- `GET /api/council` → last 20 `logs/grand_council_decisions.jsonl` entries
+- `GET /api/health`  → `{"ok": true}` heartbeat
+
+`walche_dashboard.html` — full-screen space/universe visualization (no CDN, no npm, no install):
+- **Voice commands** — press `V` or click the Voice button (requires Chromium browser + mic):
+  - `status` / `score` / `verdict` — speak current system health
+  - `show core` / `show corpus` / `show healing` / `show loop` / `show meta` / `show vll` / `show council`
+  - `refresh` — re-poll the API
+  - `close` — dismiss the detail panel
+  - `help` — list all commands
+- **WALCHE speaks back** — TTS responses using SpeechSynthesis; 🔊 button reads any open panel
+- **All data fields live-connected**: domain scores from `domain_results[-1]`, modules real/stub,
+  corpus entries + integrity, VLL proposals + weight deltas, council decisions, score trend timeline
+- **Animated universe**: starfield with twinkling + shooting stars, animated dashed beam flow lines,
+  4 travel particles per beam, particle burst on data load, rotating scanner arc on WALCHE CORE,
+  expanding pulse rings, floating VLL + Council nodes, animated score counters
+- **Bottom KPI bar**: Final Score · Verdict badge · Real/Stub modules · Corpus Entries ·
+  corpus.integrity score · Baseline · Last Run timestamp + age
+- Auto-refreshes every 30 seconds; keyboard shortcuts: `V` voice, `R` refresh, `Esc` close panel
+
+`walche_status.py` — patched: `corpus_kb_stats.generated_at` now included in JSON output
+(previously dropped when unpacking `kb["stats"]`).
+
+**Prerequisites:** Run `walche_demo.py` at least once to generate `logs/walche_demo_*.json` —
+the dashboard shows live data after that. Works in "no data" state (shows `—` placeholders)
+until a run exists.
 
 ---
 
