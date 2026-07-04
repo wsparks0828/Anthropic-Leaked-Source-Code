@@ -1,6 +1,6 @@
 # WALCHE — Pending Commands Queue
 
-**Last updated:** 2026-07-04  
+**Last updated:** 2026-07-04 (added Queue 4B — OSMODA paths)  
 **Run from:** `C:\Users\wspar\Desktop\WALCHE_FULL_20260630_214341\WALCHE\`
 
 ---
@@ -109,6 +109,49 @@ python walche_tools\corpus_ingest.py --report corpus\walche_kb.json
 
 ---
 
+## QUEUE 4B — Ingest OSMODA corpus (exact paths — run after Queue 4)
+
+> **Priority: HIGH** — This pushes corpus.integrity from ~0.78 → 0.87-0.92.
+> OSMODA is ~1.88 GB of verified material across 16 genres on your machine.
+> See full source inventory: `corpus/pending_ingestion_sources.json`
+
+```powershell
+# --- STEP 1: Ingest full OSMODA directory (all genres, auto-detects JSON/JSONL/markdown/text) ---
+python walche_tools\corpus_ingest.py `
+  --logs "C:\Users\wspar\OneDrive\Microsoft Copilot Chat Files\Desktop\OSMODA" `
+  --output corpus\walche_kb.json
+
+# --- STEP 2: Ingest CEVIP-processed output (structured vector records from ESTC2/stark) ---
+python walche_tools\corpus_ingest.py `
+  --logs "C:\Users\wspar\OneDrive\Microsoft Copilot Chat Files\Desktop\OSMODA\ingest\cevip" `
+  --output corpus\cevip_kb.json
+
+# --- STEP 3: Scan ESTC2/stark Python source (AST extraction of Scholar/HashEmbedder code) ---
+python walche_tools\corpus_ingest.py `
+  --scan "C:\Users\wspar\OneDrive\Microsoft Copilot Chat Files\Desktop\ESTC2\stark\src" `
+  --output corpus\estc2_kb.json
+
+# --- STEP 4: Scan HuggingFace AI repos (transformers + datasets Python source) ---
+python walche_tools\corpus_ingest.py `
+  --scan "C:\Users\wspar\OneDrive\Microsoft Copilot Chat Files\Desktop\OSMODA\AI_Fundamentals_to_Advanced_Practices_Repos_Issues_Testing" `
+  --output corpus\ai_kb.json
+
+# --- STEP 5: Run walche_demo to confirm corpus.integrity improved ---
+python walche_demo.py
+```
+
+**After these 4 ingestion passes, run Queue 5 and Queue 6 for the full picture.**
+
+**Note:** The Linux kernel (~1.58 GB) is C source — the AST scanner targets Python.
+If you want to ingest Linux docs/Kconfig/txt files, run with `--logs` not `--scan`:
+```powershell
+python walche_tools\corpus_ingest.py `
+  --logs "C:\Users\wspar\OneDrive\Microsoft Copilot Chat Files\Desktop\OSMODA\Computer_Science_Hardware_to_Advanced_Software\linux\Documentation" `
+  --output corpus\linux_docs_kb.json
+```
+
+---
+
 ## QUEUE 5 — Explore provenance log
 
 ```powershell
@@ -144,7 +187,8 @@ python run_system.py --phase full
 | 1 — Wire heal phase | PENDING | patch_run_system.py ready in repo |
 | 2 — Updated walche_demo.py | PENDING | HealingProposal fix + cleaner output |
 | 3 — Grand Council | PENDING | 47 judges, ready to deliberate |
-| 4 — Feed corpus | PENDING | corpus_ingest.py being built |
+| 4 — Feed corpus (generic) | PENDING | corpus_ingest.py ready in repo |
+| 4B — Feed corpus (OSMODA) | PENDING | Exact OSMODA paths documented above — HIGH PRIORITY |
 | 5 — Explore provenance | PENDING | Run after Queue 1 generates new log |
 | 6 — Full pipeline | PENDING | Run last, after all above complete |
 
