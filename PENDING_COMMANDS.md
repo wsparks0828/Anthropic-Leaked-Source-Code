@@ -69,21 +69,43 @@ python walche_tools\council_of_9.py --proposal "Disable prompt caching in test e
 ## QUEUE 4 — Feed the corpus (fix corpus.integrity ~0.78 → 0.85+)
 
 ```powershell
-# Download corpus ingestion tool (being built now)
+# Download corpus ingestion tool
 Invoke-WebRequest `
   -Uri "https://raw.githubusercontent.com/wsparks0828/Anthropic-Leaked-Source-Code/claude/session-01ht1jmqadwsdphy19maevvl-7qlsw7/walche_tools/corpus_ingest.py" `
   -OutFile "walche_tools\corpus_ingest.py" `
   -SkipCertificateCheck
 
-# Scan WALCHE and build corpus knowledge base
+# --- OPTION A: Scan WALCHE Python source ---
+python walche_tools\corpus_ingest.py --scan . --output corpus\walche_kb.json --dry-run
 python walche_tools\corpus_ingest.py --scan . --output corpus\walche_kb.json
 
-# Dry run first to see what would be ingested
-python walche_tools\corpus_ingest.py --scan . --output corpus\walche_kb.json --dry-run
+# --- OPTION B: Ingest AI platform build logs ---
+# Supports: OpenAI, LangChain, LangSmith, LangGraph, AutoGen, CrewAI,
+#           Hugging Face, GitHub Actions, any JSON/JSONL/text log.
+# Platform is auto-detected from log structure. Secrets are scrubbed before write.
+
+# Point at any directory containing your logs:
+python walche_tools\corpus_ingest.py --logs C:\path\to\your\logs --output corpus\walche_kb.json
+
+# With an explicit platform hint (optional — auto-detect usually works):
+python walche_tools\corpus_ingest.py --logs C:\path\to\logs --output corpus\walche_kb.json --platform langchain
+
+# --- OPTION C: Both in one pass (recommended — highest corpus density) ---
+python walche_tools\corpus_ingest.py --scan . --logs C:\path\to\logs --output corpus\walche_kb.json
 
 # After ingesting — run demo again to confirm corpus.integrity improved
 python walche_demo.py
+
+# View a report on what's in the KB
+python walche_tools\corpus_ingest.py --report corpus\walche_kb.json
 ```
+
+**Where to find logs on your machine:**
+- LangSmith/LangChain traces: usually exported from https://smith.langchain.com as `.jsonl`
+- OpenAI usage logs: dashboard → Usage → Export
+- GitHub Actions: any `.log` files from workflow runs
+- Your own agent outputs: any `.json` or `.jsonl` your agents write to disk
+- AutoGen/CrewAI: console output redirected to a `.log` file works too
 
 ---
 
