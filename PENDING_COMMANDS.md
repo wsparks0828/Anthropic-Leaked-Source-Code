@@ -252,8 +252,10 @@ python run_system.py --phase full
 | 1 — Wire heal phase | PENDING | patch_run_system.py ready in repo |
 | 2 — Updated walche_demo.py | PENDING | HealingProposal fix + cleaner output |
 | 3 — Grand Council | PENDING | 47 judges, ready to deliberate |
-| 4 — Feed corpus (generic) | PENDING | corpus_ingest.py ready in repo |
+| 4 — Feed corpus (generic) | PENDING | corpus_ingest.py ready in repo. LangSmith log: export traces from smith.langchain.com as JSONL then run --logs |
 | 4B — Feed corpus (OSMODA) | PENDING | Exact OSMODA paths documented above — HIGH PRIORITY |
+| 4C — Clone repos (CS+AI) | PENDING | linux, llvm, riscv-isa-manual, transformers, datasets, lm-eval-harness — run before 4B |
+| 4D — US Code XML (Legal) | PENDING | usc26.xml.zip + usc28.xml.zip from uscode.house.gov PL 119/99 |
 | 5 — Explore provenance | PENDING | Run after Queue 1 generates new log |
 | 6 — Full pipeline | PENDING | Run last, after all above complete |
 
