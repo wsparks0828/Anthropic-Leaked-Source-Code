@@ -17,15 +17,15 @@ Local mode (rubric scoring):     runs without API key — automatic fallback
 """
 
 import os
+import re
 import sys
 import json
 import time
-import random
 import argparse
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import List, Optional, Dict, Tuple
+from typing import List, Optional, Dict
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
@@ -70,6 +70,7 @@ class CouncilResult:
     confidence: float
     timestamp: str
     judges_seated: List[str]
+    judge_ids: List[int] = field(default_factory=list)
 
 
 # ── Grand Council Roster (47 judges) ─────────────────────────────────────────
@@ -883,6 +884,18 @@ def _local_evaluate(judge: Judge, proposal: str, proposal_type: str) -> VoteResu
     """Evaluate a proposal locally using keyword scoring against judge criteria."""
     t0 = time.time()
     p_lower = proposal.lower()
+    p_words = set(re.findall(r"[a-z0-9]+", p_lower))
+
+    # Special cases checked BEFORE hard vetoes — a judge mandated to always
+    # abstain (e.g. Law 5 Placeholder) must not have that overridden by its
+    # own hard_veto_triggers coincidentally matching the proposal text.
+    if judge.special_power == "abstain_until_ratified":
+        return VoteResult(
+            judge_id=judge.id, judge_name=judge.name,
+            vote="ABSTAIN", confidence=1.0,
+            reasoning="Law 5 not yet ratified. Holding this seat. No vote cast.",
+            mode="local", elapsed_ms=0,
+        )
 
     # Check hard veto triggers — full phrase match only (not word-by-word)
     for trigger in judge.hard_veto_triggers:
@@ -897,21 +910,14 @@ def _local_evaluate(judge: Judge, proposal: str, proposal_type: str) -> VoteResu
                 elapsed_ms=int((time.time() - t0) * 1000),
             )
 
-    # Special cases
-    if judge.special_power == "abstain_until_ratified":
-        return VoteResult(
-            judge_id=judge.id, judge_name=judge.name,
-            vote="ABSTAIN", confidence=1.0,
-            reasoning="Law 5 not yet ratified. Holding this seat. No vote cast.",
-            mode="local", elapsed_ms=0,
-        )
-
-    # Score proposal against evaluation focus keywords
+    # Score proposal against evaluation focus keywords — whole-word match only.
+    # Substring matching let short focus words match unrelated text (e.g. "io"
+    # from "io_cost" matching inside "action"/"ratio"), inflating relevance.
     score = 0.0
     matched = []
     for focus_term in judge.evaluation_focus:
         term_words = focus_term.replace("_", " ").split()
-        if any(w in p_lower for w in term_words):
+        if any(w in p_words for w in term_words):
             score += 1.0
             matched.append(focus_term)
 
@@ -919,11 +925,29 @@ def _local_evaluate(judge: Judge, proposal: str, proposal_type: str) -> VoteResu
     max_score = max(len(judge.evaluation_focus), 1)
     relevance = score / max_score
 
+    # Whistleblower can escalate even in local (no-API) mode when the proposal
+    # matches a strong share of its concealment-detection focus terms. This is
+    # a heuristic, not a real concealment analysis — API mode is the real check.
+    if judge.special_power == "escalate_to_full_council" and relevance >= 0.5:
+        return VoteResult(
+            judge_id=judge.id, judge_name=judge.name,
+            vote="ESCALATE", confidence=min(0.85, 0.5 + relevance * 0.3),
+            reasoning=(
+                f"Local-mode heuristic: proposal matches {matched} — possible "
+                f"concealment/omission signal. Escalating to Full Grand Council "
+                f"for full review. (No API key — this is a keyword heuristic, "
+                f"not a real concealment analysis.)"
+            ),
+            mode="local", elapsed_ms=int((time.time() - t0) * 1000),
+        )
+
     # Apply bias
     bias_mod = {"approve": 0.15, "reject": -0.15, "neutral": 0.0}[judge.bias]
     adjusted = min(1.0, max(0.0, relevance + bias_mod + 0.4))  # base 0.4 = neutral leaning
 
-    # Determine vote
+    # Determine vote — reject-biased judges reject below 0.6; ANY judge (not
+    # just reject-biased ones) rejects below 0.45, so REJECT is structurally
+    # reachable on approve/neutral-biased panels instead of only ABSTAIN.
     if judge.bias == "reject" and adjusted < 0.6:
         vote = "REJECT"
         confidence = 0.7
@@ -938,6 +962,13 @@ def _local_evaluate(judge: Judge, proposal: str, proposal_type: str) -> VoteResu
         reasoning = (
             f"Proposal addresses key concerns for {judge.protects}. "
             f"Matched: {matched}. Score: {adjusted:.2f}."
+        )
+    elif adjusted < 0.45:
+        vote = "REJECT"
+        confidence = 0.6
+        reasoning = (
+            f"Proposal scores too low against {judge.protects} to approve. "
+            f"Matched: {matched or ['none']}. Score: {adjusted:.2f}."
         )
     else:
         vote = "ABSTAIN"
@@ -996,7 +1027,7 @@ def _api_evaluate(judge: Judge, proposal: str, proposal_type: str, api_key: str)
                     vote = v
             elif line.startswith("CONFIDENCE:"):
                 try:
-                    confidence = float(line.split(":", 1)[1].strip())
+                    confidence = min(1.0, max(0.0, float(line.split(":", 1)[1].strip())))
                 except ValueError:
                     pass
             elif line.startswith("REASONING:"):
@@ -1026,11 +1057,16 @@ def select_judges(proposal_type: str, count: int, exclude_ids: List[int] = None)
     # Filter out excluded IDs
     primary = [JUDGE_BY_ID[i] for i in candidates if i not in exclude_ids and i in JUDGE_BY_ID]
 
-    # Pad with remaining judges if needed
+    # Pad with remaining judges if needed — deterministic ordering (by id) so
+    # governance verdicts are reproducible run-to-run instead of depending on
+    # an unseeded shuffle. Reproducibility matters for an auditable governance
+    # trail (this file's own provenance/traceability judges depend on it).
     if len(primary) < count:
-        remaining = [j for j in GRAND_COUNCIL if j.id not in [p.id for p in primary]
-                     and j.id not in exclude_ids]
-        random.shuffle(remaining)
+        seated_ids = {p.id for p in primary}
+        remaining = sorted(
+            (j for j in GRAND_COUNCIL if j.id not in seated_ids and j.id not in exclude_ids),
+            key=lambda j: j.id,
+        )
         primary.extend(remaining[:count - len(primary)])
 
     return primary[:count]
@@ -1045,6 +1081,7 @@ def _run_council(
     proposal_type: str,
     quorum: int,
     api_key: Optional[str],
+    majority_of_participants: bool = False,
 ) -> CouncilResult:
     """Run a council session and return the result."""
     ts = datetime.now(timezone.utc).isoformat()
@@ -1074,31 +1111,77 @@ def _run_council(
 
         print(f"{vote_display}  ({result.confidence:.2f})  {result.reasoning[:60]}...")
 
-    # Tally
+    # Only judges with the escalate_to_full_council special power can actually
+    # trigger an escalation; any other judge's ESCALATE vote counts as ABSTAIN
+    # instead — otherwise any single judge can force escalation (overriding a
+    # constitutional hard veto below, since this used to be checked first).
+    escalations = [
+        v for v in votes if v.vote == "ESCALATE"
+        and JUDGE_BY_ID.get(v.judge_id) is not None
+        and JUDGE_BY_ID[v.judge_id].special_power == "escalate_to_full_council"
+    ]
+    # A tier that's already the full grand council has nowhere left to escalate
+    # to — treat as non-escalating there (falls through to normal tallying).
+    if tier == "full_grand_council":
+        escalations = []
+
+    # Tally — non-empowered ESCALATE votes count as ABSTAIN for this purpose.
     approve  = sum(1 for v in votes if v.vote == "APPROVE")
     reject   = sum(1 for v in votes if v.vote == "REJECT")
-    abstain  = sum(1 for v in votes if v.vote == "ABSTAIN")
-    escalate = sum(1 for v in votes if v.vote == "ESCALATE")
+    abstain  = sum(1 for v in votes if v.vote == "ABSTAIN") + sum(
+        1 for v in votes if v.vote == "ESCALATE" and v not in escalations
+    )
+    escalate = len(escalations)
 
-    # Check for special powers
-    hard_vetos = [v for v in votes if v.vote == "REJECT"
-                  and JUDGE_BY_ID.get(v.judge_id, Judge(0,"","","","","",[],"","")).special_power == "hard_veto"]
-    escalations = [v for v in votes if v.vote == "ESCALATE"]
+    hard_vetos = [
+        v for v in votes if v.vote == "REJECT"
+        and JUDGE_BY_ID.get(v.judge_id) is not None
+        and JUDGE_BY_ID[v.judge_id].special_power == "hard_veto"
+    ]
 
-    # Sovereign tiebreaker check
+    # Sovereign tiebreaker — symmetric (resolves toward either APPROVE or
+    # REJECT, not just APPROVE), and only eligible when the tie is close to
+    # quorum already (approve/reject at least quorum-1) so a near-empty vote
+    # can't be decided by a single judge while still calling it "quorum met".
     sovereign_vote = next((v for v in votes if v.judge_id == 28), None)
+    tie_break_eligible = (
+        approve == reject
+        and sovereign_vote is not None
+        and sovereign_vote.vote in ("APPROVE", "REJECT")
+        and approve >= max(0, quorum - 1)
+    )
 
-    if escalations:
-        verdict = "ESCALATED"
-    elif hard_vetos:
+    # Hard vetoes are checked FIRST — a constitutional veto cannot be
+    # overridden by an escalation vote from an unrelated judge.
+    if hard_vetos:
         verdict = "REJECTED"
-        reject = max(reject, 1)
+    elif escalations:
+        verdict = "ESCALATED"
+    elif majority_of_participants:
+        # Full Grand Council: an absolute 24/47 threshold counts abstentions
+        # as de-facto rejections (judge 46 always abstains; local-mode bias
+        # skews toward ABSTAIN — see _local_evaluate), making DEADLOCKED the
+        # near-guaranteed outcome and functioning as a pocket veto. Decide by
+        # majority of judges who actually voted APPROVE/REJECT, gated by a
+        # minimum participation floor (still `quorum` judges must have voted
+        # non-abstain) so a handful of votes can't decide for the whole body.
+        participation = approve + reject
+        if participation < quorum:
+            verdict = "DEADLOCKED"
+        elif approve > reject:
+            verdict = "APPROVED"
+        elif reject > approve:
+            verdict = "REJECTED"
+        elif tie_break_eligible:
+            verdict = "APPROVED" if sovereign_vote.vote == "APPROVE" else "REJECTED"
+        else:
+            verdict = "DEADLOCKED"
     elif approve >= quorum:
         verdict = "APPROVED"
     elif reject >= quorum:
         verdict = "REJECTED"
-    elif approve == reject and sovereign_vote and sovereign_vote.vote == "APPROVE":
-        verdict = "APPROVED"  # Sovereign tiebreaker
+    elif tie_break_eligible:
+        verdict = "APPROVED" if sovereign_vote.vote == "APPROVE" else "REJECTED"
     else:
         verdict = "DEADLOCKED"
 
@@ -1132,6 +1215,7 @@ def _run_council(
         confidence=avg_confidence,
         timestamp=ts,
         judges_seated=[j.name for j in judges],
+        judge_ids=[j.id for j in judges],
     )
 
 
@@ -1161,10 +1245,12 @@ def full_grand_council(
     proposal_type: str = "general",
     api_key: Optional[str] = None,
 ) -> CouncilResult:
-    """Extraordinary session — all 47 judges, quorum 24/47 (simple majority)."""
+    """Extraordinary session — all 47 judges. Decided by majority of judges
+    who actually voted APPROVE/REJECT, with a 24-judge minimum participation
+    floor — not an absolute 24/47 threshold (see _run_council)."""
     return _run_council(
         "full_grand_council", GRAND_COUNCIL, proposal, proposal_type,
-        quorum=24, api_key=api_key
+        quorum=24, api_key=api_key, majority_of_participants=True,
     )
 
 
@@ -1206,7 +1292,13 @@ def deliberate(
     elif tier == "c9_only":
         r = council_of_9(proposal, proposal_type, api_key)
         results["council_of_9"] = r
-        final_verdict = r.verdict
+        if r.verdict == "ESCALATED":
+            print("\n  [ESCALATION] Council of 9 escalated to Full Grand Council")
+            r_full = full_grand_council(proposal, proposal_type, api_key)
+            results["full_grand_council"] = r_full
+            final_verdict = r_full.verdict
+        else:
+            final_verdict = r.verdict
 
     else:  # standard: c5 → c9
         r5 = council_of_5(proposal, proposal_type, api_key)
@@ -1220,14 +1312,26 @@ def deliberate(
 
         elif r5.verdict == "APPROVED":
             print("\n  [PASSED C5] Proceeding to Council of 9 ratification...")
-            c5_judge_ids = [j.id for j in select_judges(proposal_type, 5)]
-            r9 = council_of_9(proposal, proposal_type, api_key, exclude_ids=c5_judge_ids)
+            # Exclude the judges actually seated in C5 (r5.judge_ids), not a
+            # freshly recomputed select_judges() call — recomputing can
+            # diverge from the real C5 panel the moment judge selection gains
+            # any nondeterminism, letting a C5 judge double-vote in C9.
+            r9 = council_of_9(proposal, proposal_type, api_key, exclude_ids=r5.judge_ids)
             results["council_of_9"] = r9
-            final_verdict = r9.verdict
+
+            if r9.verdict == "ESCALATED":
+                print("\n  [ESCALATION] Council of 9 escalated to Full Grand Council")
+                r_full = full_grand_council(proposal, proposal_type, api_key)
+                results["full_grand_council"] = r_full
+                final_verdict = r_full.verdict
+            else:
+                final_verdict = r9.verdict
 
         else:
             print(f"\n  [BLOCKED at C5] Verdict: {r5.verdict} — Council of 9 not convened.")
             final_verdict = r5.verdict
+
+    deciding_council = list(results.keys())[-1] if results else tier
 
     # Final summary
     verdict_col = {
@@ -1242,19 +1346,28 @@ def deliberate(
     print(f"  {'═' * 58}\n")
 
     # Write provenance log
-    _write_provenance(proposal, proposal_type, tier, final_verdict, results)
+    _write_provenance(proposal, proposal_type, tier, final_verdict, results, ts=ts)
 
     return {
         "proposal":      proposal,
         "proposal_type": proposal_type,
         "tier":          tier,
+        "deciding_council": deciding_council,
         "final_verdict": final_verdict,
+        # Deciding council's average vote confidence — the only per-decision
+        # quality signal available. walche_demo.py records council score as
+        # 0.0 for every decision without this (deliberate() previously
+        # returned no score/confidence key at all).
+        "score":         results[deciding_council].confidence if deciding_council in results else 0.0,
+        "confidence":    results[deciding_council].confidence if deciding_council in results else 0.0,
         "timestamp":     ts,
         "councils":      {k: {
             "verdict":        v.verdict,
             "approve":        v.approve_count,
             "reject":         v.reject_count,
             "abstain":        v.abstain_count,
+            "escalate":       v.escalate_count,
+            "confidence":     v.confidence,
             "quorum":         v.quorum,
             "judges_seated":  v.judges_seated,
         } for k, v in results.items()},
@@ -1263,8 +1376,17 @@ def deliberate(
 
 # ── Provenance logging ────────────────────────────────────────────────────────
 
-def _write_provenance(proposal, proposal_type, tier, verdict, results):
-    """Write council decision to WALCHE provenance log."""
+def _write_provenance(proposal, proposal_type, tier, verdict, results, ts=None):
+    """Write council decision to WALCHE provenance log.
+
+    Appends to logs/grand_council_decisions.jsonl UNCONDITIONALLY — this is
+    the only source vll_engine.py and walche_status.py read for council
+    decisions. Previously that append lived only in the except branch, so on
+    an install where core.provenance imports successfully, every council
+    decision disappeared from VLL learning and the dashboard.
+    """
+    ts = ts or datetime.now(timezone.utc).isoformat()
+
     try:
         from core.provenance import ProvenanceLog
         prov = ProvenanceLog()
@@ -1275,13 +1397,16 @@ def _write_provenance(proposal, proposal_type, tier, verdict, results):
             "verdict":       verdict,
             "councils":      list(results.keys()),
         })
-    except Exception:
-        # Write to local log if WALCHE provenance unavailable
+    except Exception as e:
+        print(f"  [PROVENANCE] core.provenance unavailable ({e}) — "
+              f"grand_council_decisions.jsonl is still the primary record")
+
+    try:
         log_dir = ROOT / "logs"
         log_dir.mkdir(exist_ok=True)
         log_path = log_dir / "grand_council_decisions.jsonl"
         entry = {
-            "timestamp":     datetime.now(timezone.utc).isoformat(),
+            "timestamp":     ts,
             "proposal":      proposal[:200],
             "proposal_type": proposal_type,
             "tier":          tier,
@@ -1289,6 +1414,10 @@ def _write_provenance(proposal, proposal_type, tier, verdict, results):
         }
         with open(log_path, "a", encoding="utf-8") as f:
             f.write(json.dumps(entry) + "\n")
+    except Exception as e:
+        # A disk/permission failure here must not propagate out of
+        # deliberate() and lose the verdict that was already announced.
+        print(f"  [WARN] Could not write grand_council_decisions.jsonl: {e}")
 
 
 # ── CLI ───────────────────────────────────────────────────────────────────────
@@ -1339,7 +1468,6 @@ def main():
 
 
 if __name__ == "__main__":
-    import os
     if sys.platform == "win32":
         os.system("")
     main()
