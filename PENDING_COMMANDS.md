@@ -369,6 +369,72 @@ Write-Host "And:      python walche_tools\corpus_ingest.py --scan `"$tdlLibs`" -
 
 ---
 
+## QUEUE 4I — Download Loop Engineering articles + ReAct paper + clone loop implementation frameworks
+
+> **Genre:** AI_Fundamentals_to_Advanced_Practices_Repos_Issues_Testing  
+> WALCHE is a ReAct-class system. This queue downloads academic grounding (ReAct arXiv:2210.03629),  
+> saves the practitioner blog articles, and clones the four major loop implementation frameworks.  
+> LangGraph's conditional edge pattern is the highest-priority item — models WALCHE's C12 judgment gate upgrade.
+
+```powershell
+$loopDir = "C:\Users\wspar\OneDrive\Microsoft Copilot Chat Files\Desktop\OSMODA\AI_Fundamentals_to_Advanced_Practices_Repos_Issues_Testing\loop_engineering"
+New-Item -ItemType Directory -Path $loopDir -Force | Out-Null
+$implDir = "$loopDir\implementations"
+New-Item -ItemType Directory -Path $implDir -Force | Out-Null
+
+# --- ReAct paper (Yao et al. 2022 — arXiv:2210.03629) ---
+Invoke-WebRequest -Uri "https://arxiv.org/pdf/2210.03629" -OutFile "$loopDir\yao_2022_react_arXiv2210.03629.pdf"
+
+# --- Blog articles — save as markdown (use browser Markdown extension or wget) ---
+# Masood 2026 — Loop Engineering: A Guide for Engineers and Practitioners (Medium)
+# Search: https://medium.com — "Loop Engineering Guide Engineers Practitioners Masood 2026"
+# Save to: $loopDir\masood_2026_loop_engineering_guide.md
+
+# LangChain 2026 — The Art of Loop Engineering
+# Search: https://blog.langchain.com — "Art of Loop Engineering 2026"
+# Save to: $loopDir\langchain_2026_art_of_loop_engineering.md
+
+# Oracle 2026 — What Is the AI Agent Loop?
+# Search: https://oracle.com/artificial-intelligence/ — "What Is the AI Agent Loop 2026"
+# Save to: $loopDir\oracle_2026_ai_agent_loop.md
+
+# Mem0 2026 — Loop Engineering for AI Agents: Memory-First Design
+# Search: https://mem0.ai/blog — "Loop Engineering Memory-First Design 2026"
+# Save to: $loopDir\mem0_2026_loop_engineering_memory_first.md
+
+# MindStudio 2026 — What Is Loop Engineering?
+# Search: https://mindstudio.ai/blog — "What Is Loop Engineering 2026"
+# Save to: $loopDir\mindstudio_2026_what_is_loop_engineering.md
+
+# After saving all .md files, ingest:
+python walche_tools\corpus_ingest.py --logs "$loopDir" --output corpus\loop_eng_kb.json
+
+# --- Clone loop implementation framework repos ---
+$repoDir = "C:\Users\wspar\OneDrive\Microsoft Copilot Chat Files\Desktop\OSMODA\AI_Fundamentals_to_Advanced_Practices_Repos_Issues_Testing"
+
+if (!(Test-Path "$implDir\langgraph")) {
+    git clone --depth 1 https://github.com/langchain-ai/langgraph "$implDir\langgraph"
+}
+if (!(Test-Path "$implDir\autogen")) {
+    git clone --depth 1 https://github.com/microsoft/autogen "$implDir\autogen"
+}
+if (!(Test-Path "$implDir\crewAI")) {
+    git clone --depth 1 https://github.com/crewAIInc/crewAI "$implDir\crewAI"
+}
+if (!(Test-Path "$implDir\openai-agents-python")) {
+    git clone --depth 1 https://github.com/openai/openai-agents-python "$implDir\openai-agents-python"
+}
+
+Write-Host "Loop engineering materials ready in $loopDir"
+Write-Host "Run: python walche_tools\corpus_ingest.py --scan `"$implDir`" --output corpus\loop_eng_kb.json"
+```
+
+**Note on Reflexion (Shinn et al. 2023 arXiv:2303.11366):** Already logged as `reflexion_shinn_2023` in batch 20 and queued for download in Queue 4E. Do not re-download. Pair with ReAct PDF above during corpus analysis — ReAct = initial loop pattern; Reflexion = self-improvement extension via verbal RL.
+
+**Risk note (document with corpus):** Blog articles cover loop engineering RISKS — infinite loops, error amplification, confirmation bias in reflection loops, capability explosion in recursive self-improvement. These risk patterns should be indexed as WALCHE guardrail training material, not just background reading. Tag them in CEVIP with `topics: ["loop_risks", "guardrail_training", "failure_modes"]`.
+
+---
+
 ## QUEUE 5 — Explore provenance log
 
 ```powershell
@@ -412,6 +478,7 @@ python run_system.py --phase full
 | 4F — NeSy PDFs + repos | PENDING | Garcez arXiv:2012.05876, LTN arXiv:2012.13421; clone scallop, LTN_pytorch, awesome-neurosymbolic-ai |
 | 4G — RAG ingestion repos | PENDING | Clone llama_index, langchain, unstructured; hardens CEVIP PreIngest phase |
 | 4H — TDL papers + libs | PENDING | Zia arXiv:2302.03836, Hensel Frontiers 2021; clone giotto-tda, TopoModelX, TopoNetX |
+| 4I — Loop Engineering | PENDING | ReAct arXiv:2210.03629 + 5 blog articles (save as .md) + clone LangGraph/AutoGen/CrewAI/OpenAI-Agents |
 | 5 — Explore provenance | PENDING | Run after Queue 1 generates new log |
 | 6 — Full pipeline | PENDING | Run last, after all above complete |
 
