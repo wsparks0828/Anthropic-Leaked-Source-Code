@@ -22,8 +22,8 @@ from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Tuple
 
 # ── WALCHE root detection ─────────────────────────────────────────────────────
-ROOT   = Path(__file__).parent.parent   # walche_tools/../ = WALCHE root
-_tools = Path(__file__).parent          # walche_tools/ — used for imports
+ROOT   = Path(__file__).resolve().parent.parent   # walche_tools/../ = WALCHE root
+_tools = Path(__file__).resolve().parent          # walche_tools/ — used for imports
 if str(_tools) not in sys.path:
     sys.path.insert(0, str(_tools))
 
@@ -192,6 +192,18 @@ def _score_color(score: float) -> str:
     color = C.GREEN if score >= 0.85 else C.YELLOW if score >= 0.70 else C.RED
     return f"{color}{score:.3f}{C.RESET}"
 
+def _load_vll_weights(root: Path) -> Dict[str, float]:
+    """Load learned VLL signal-weight multipliers, if any. Returns {} if the
+    VLL has never run — signals are then used unmodified."""
+    vll_path = root / "corpus" / "vll_state.json"
+    if not vll_path.exists():
+        return {}
+    try:
+        state = json.loads(vll_path.read_text(encoding="utf-8"))
+        return state.get("adjusted_weights", {})
+    except Exception:
+        return {}
+
 # ── Single healing cycle ──────────────────────────────────────────────────────
 
 def run_cycle(
@@ -203,9 +215,11 @@ def run_cycle(
     pain: _StubPAINFMEA,
     gate: _StubPreIngestGate,
     guard: _StubGuardrail,
+    vll_weights: Dict[str, float] = None,
 ) -> Tuple[float, List[Dict]]:
     """Run one full healing cycle across all domains. Returns (avg_score, results)."""
 
+    vll_weights = vll_weights or {}
     results = []
     print(f"\n  {hi(f'── CYCLE {cycle_num} ──────────────────────────────────────────')}")
 
@@ -214,6 +228,8 @@ def run_cycle(
         label   = domain["label"]
         signals = {k: min(0.99, v + (cycle_num - 1) * random.uniform(0.01, 0.03))
                    for k, v in domain["signals"].items()}
+        if vll_weights:
+            signals = {k: min(0.99, v * vll_weights.get(k, 1.0)) for k, v in signals.items()}
 
         # Pre-ingest gate — discover method name at runtime
         gate_ok = True
@@ -366,9 +382,11 @@ def _run_council_deliberation(
             print(f"  {warn('[COUNCIL]')} council_of_9.py not found in walche_tools/ — skipping")
         return []
 
-    # Group proposals by type; only route token_strategy and security to council
-    # (other types are informational — council governs Law 11 changes)
-    governance_types = {"token_strategy", "security"}
+    # Group proposals by type and route governance-relevant types to council.
+    # Stub-mode healing proposals never classify as token_strategy/security (see
+    # _PROPOSAL_TYPE_KEYWORDS), so corpus/healing must also route or --council
+    # never deliberates anything in stub mode.
+    governance_types = {"token_strategy", "security", "corpus", "healing"}
     grouped: Dict[str, List[str]] = {}
     for p in proposals:
         ptype = _classify_proposal(p)
@@ -402,7 +420,7 @@ def _run_council_deliberation(
             print(f"  {warn('[COUNCIL]')} Deliberation error: {e}")
             continue
 
-        verdict_val = result.get("final_verdict", result.get("verdict", "UNKNOWN"))
+        verdict_val = str(result.get("final_verdict") or result.get("verdict") or "UNKNOWN")
         try:
             score = float(result.get("score", result.get("final_score", 0.0)))
         except (TypeError, ValueError):
@@ -443,10 +461,14 @@ def main(argv=None):
                         help="Anthropic API key for real Council agents")
     parser.add_argument("--cycles",   type=int, default=4,
                         help="Number of healing cycles (default: 4, min: 1)")
+    parser.add_argument("--seed",     type=int, default=None,
+                        help="Seed the synthetic signal-growth RNG for reproducible demo runs")
     parser.add_argument("-h", "--help", action="help")
-    args, _ = parser.parse_known_args(argv)
+    args = parser.parse_args(argv)
     if args.cycles < 1:
         parser.error("--cycles must be at least 1")
+    if args.seed is not None:
+        random.seed(args.seed)
 
     ts = datetime.now(timezone.utc).isoformat()
     NUM_CYCLES = args.cycles
@@ -463,7 +485,10 @@ def main(argv=None):
 
     # ── Module status ─────────────────────────────────────────────────────────
     print(f"\n  {bold('MODULE STATUS')}")
-    cfg = WalcheConfig()
+    try:
+        cfg = WalcheConfig()
+    except Exception:
+        cfg = _StubConfig()
 
     for key, status in _module_status.items():
         short = key.split(".")[-1]
@@ -478,17 +503,22 @@ def main(argv=None):
 
     # ── Instantiate ───────────────────────────────────────────────────────────
     try: scorer  = RubricScorer(threshold=0.85)
-    except: scorer  = _StubRubricScorer(threshold=0.85)
+    except Exception: scorer  = _StubRubricScorer(threshold=0.85)
     try: meta    = MetaEngine()
-    except: meta    = _StubMetaEngine()
+    except Exception: meta    = _StubMetaEngine()
     try: healer  = HealingEngine(max_history=cfg.max_history if hasattr(cfg, "max_history") else 8)
-    except: healer  = _StubHealingEngine()
+    except Exception: healer  = _StubHealingEngine()
     try: pain    = PAINFMEA()
-    except: pain    = _StubPAINFMEA()
+    except Exception: pain    = _StubPAINFMEA()
     try: gate    = PreIngestGate()
-    except: gate    = _StubPreIngestGate()
+    except Exception: gate    = _StubPreIngestGate()
     try: guard   = Guardrail()
-    except: guard   = _StubGuardrail()
+    except Exception: guard   = _StubGuardrail()
+
+    # ── VLL weights — close the self-improvement loop ────────────────────────
+    vll_weights = _load_vll_weights(ROOT)
+    if vll_weights:
+        print(f"\n  {C.DIM}VLL weights loaded from corpus/vll_state.json{C.RESET}")
 
     # ── Healing cycles ────────────────────────────────────────────────────────
     print(f"\n  {bold('HEALING LOOP STARTING')}")
@@ -499,7 +529,7 @@ def main(argv=None):
 
     for cycle in range(1, NUM_CYCLES + 1):
         avg_score, results = run_cycle(
-            cycle, DOMAINS, scorer, meta, healer, pain, gate, guard
+            cycle, DOMAINS, scorer, meta, healer, pain, gate, guard, vll_weights
         )
         cycle_scores.append(avg_score)
         all_results.append(results)
@@ -536,7 +566,7 @@ def main(argv=None):
     print(f"  Final avg score:  {_bar(final_score, 20)}")
     print(f"  Cycle 1 → {NUM_CYCLES}:    {_score_color(cycle_scores[0])} → {_score_color(final_score)}  "
           f"({ok(f'+{delta_total:.3f}') if delta_total >= 0 else err(f'{delta_total:.3f}')})")
-    print(f"  Real modules:     {ok(str(real_count))} / {len(_module_status)} ({real_count}/{len(_module_status)} loaded)")
+    print(f"  Real modules:     {ok(str(real_count))} / {len(_module_status)} loaded")
 
     # ── Summary per domain ────────────────────────────────────────────────────
     print(f"\n  {bold('DOMAIN SUMMARY  (final cycle)')}")
@@ -590,11 +620,32 @@ def main(argv=None):
     _tmp_log.write_text(json.dumps(log_entry, indent=2), encoding="utf-8")
     os.replace(_tmp_log, log_path)
 
-    # Append to score history so walche_status.py score trend is populated
+    # Append to score history so walche_status.py score trend / provenance_viewer.py
+    # session table are populated. Schema MUST match provenance_viewer._parse_session's
+    # output exactly (date, timestamp, source, verdict, final_score, cycle_scores,
+    # delta, real_modules, proposals, domain_scores) — a narrower schema here crashes
+    # provenance_viewer's table printer with KeyError on every non-quiet run.
+    domain_scores = {
+        r["domain"]: r["score"]
+        for r in all_results[-1]
+        if isinstance(r, dict) and "domain" in r
+    }
+    session_record = {
+        "date":          ts[:16].replace("T", " "),
+        "timestamp":     ts,
+        "source":        log_path.name,
+        "verdict":       verdict,
+        "final_score":   final_score,
+        "cycle_scores":  cycle_scores,
+        "delta":         delta_total,
+        "real_modules":  real_count,
+        "proposals":     all_proposals,
+        "domain_scores": domain_scores,
+    }
     score_history_path = ROOT / "corpus" / "score_history.jsonl"
     score_history_path.parent.mkdir(parents=True, exist_ok=True)
     with score_history_path.open("a", encoding="utf-8") as _sf:
-        _sf.write(json.dumps({"timestamp": ts, "final_score": final_score, "verdict": verdict}) + "\n")
+        _sf.write(json.dumps(session_record, ensure_ascii=False) + "\n")
 
     print(f"\n  {C.DIM}Provenance log: {log_path}{C.RESET}")
     if args.council and council_verdicts:

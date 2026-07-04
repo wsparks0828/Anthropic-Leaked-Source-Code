@@ -16,8 +16,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 
 # ── Constants ─────────────────────────────────────────────────────────────────
@@ -48,7 +49,8 @@ def _bar(v, w=20):
 def _verdict_col(v):
     if v == "GO":                  return _col(v, C.G)
     if v == "GO-WITH-CONDITIONS":  return _col(v, C.Y)
-    return _col(v, C.R)
+    if v == "NO-GO":               return _col(v, C.R)
+    return _col(v, C.D)  # unknown/UNKNOWN verdicts — neutral, not red (not the same as NO-GO)
 
 
 # ── Sparkline ─────────────────────────────────────────────────────────────────
@@ -59,7 +61,12 @@ def sparkline(values: list[float]) -> str:
     if not values:
         return ""
     lo, hi = min(values), max(values)
-    rng = hi - lo or 1.0
+    if hi == lo:
+        # Flat series: render a mid-level bar per point instead of blanks
+        # (index 0 of _SPARK is a space, which looks like "no data").
+        mid = len(_SPARK) // 2
+        return _SPARK[mid] * len(values)
+    rng = hi - lo
     chars = []
     for v in values:
         idx = int((v - lo) / rng * (len(_SPARK) - 1))
@@ -128,18 +135,29 @@ def discover_sessions(root: Path) -> list[dict]:
     for pattern in (LOG_GLOB, HEAL_LOG_GLOB):
         for path in sorted(root.glob(pattern)):
             raw = _load_log(path)
-            if raw:
-                session = _parse_session(raw, path.name)
+            if not raw:
+                continue
+            # HEAL_LOG_GLOB logs may be a JSON array of entries rather than a
+            # single dict — iterate list containers instead of crashing on .get().
+            raw_entries = raw if isinstance(raw, list) else [raw]
+            for entry in raw_entries:
+                if not isinstance(entry, dict):
+                    continue
+                try:
+                    session = _parse_session(entry, path.name)
+                except Exception:
+                    session = None
                 if session:
                     sessions.append(session)
 
     # Sort oldest → newest
     sessions.sort(key=lambda s: s["timestamp"])
-    # Deduplicate by timestamp
+    # Deduplicate by full timestamp (minute-resolution dedup silently drops
+    # a second session run within the same minute)
     seen: set[str] = set()
     unique: list[dict] = []
     for s in sessions:
-        key = s["timestamp"][:16]
+        key = s["timestamp"]
         if key not in seen:
             seen.add(key)
             unique.append(s)
@@ -147,6 +165,33 @@ def discover_sessions(root: Path) -> list[dict]:
 
 
 # ── Score history persistence ─────────────────────────────────────────────────
+
+_SESSION_DEFAULTS = {
+    "date": None,           # derived from timestamp below if missing
+    "source": "",
+    "verdict": "UNKNOWN",
+    "final_score": 0.0,
+    "cycle_scores": None,   # derived from final_score below if missing
+    "delta": 0.0,
+    "real_modules": 0,
+    "proposals": [],
+    "domain_scores": {},
+}
+
+
+def _normalize_session(record: dict) -> dict:
+    """Fill in defaults for any keys a legacy/minimal history row is missing,
+    so older rows never crash the table/domain/proposal printers."""
+    r = dict(record)
+    for key, default in _SESSION_DEFAULTS.items():
+        if key not in r or r[key] is None:
+            r[key] = default
+    if not r["date"]:
+        r["date"] = (r.get("timestamp", "") or "")[:16].replace("T", " ")
+    if not r["cycle_scores"]:
+        r["cycle_scores"] = [r["final_score"]]
+    return r
+
 
 def load_history(root: Path) -> list[dict]:
     hist_path = root / HISTORY_FILE
@@ -157,7 +202,7 @@ def load_history(root: Path) -> list[dict]:
         line = line.strip()
         if line:
             try:
-                records.append(json.loads(line))
+                records.append(_normalize_session(json.loads(line)))
             except Exception:
                 pass
     return records
@@ -167,17 +212,21 @@ def save_history(root: Path, sessions: list[dict]) -> None:
     hist_path = root / HISTORY_FILE
     hist_path.parent.mkdir(parents=True, exist_ok=True)
     lines = [json.dumps(s, ensure_ascii=False) for s in sessions]
-    hist_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    _tmp = hist_path.with_suffix(".tmp")
+    _tmp.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    os.replace(_tmp, hist_path)
 
 
 def merge_history(existing: list[dict], discovered: list[dict]) -> list[dict]:
-    """Merge discovered sessions into existing history, no duplicates."""
-    seen = {s["timestamp"][:16] for s in existing}
-    merged = list(existing)
+    """Merge discovered sessions into existing history, no duplicates. When a
+    timestamp collides, keep whichever record has more fields (the richer,
+    full session record) rather than whatever was seen first."""
+    by_ts: dict[str, dict] = {s["timestamp"]: s for s in existing}
     for s in discovered:
-        if s["timestamp"][:16] not in seen:
-            seen.add(s["timestamp"][:16])
-            merged.append(s)
+        ts = s["timestamp"]
+        if ts not in by_ts or len(s) > len(by_ts[ts]):
+            by_ts[ts] = s
+    merged = list(by_ts.values())
     merged.sort(key=lambda s: s["timestamp"])
     return merged
 
@@ -189,16 +238,25 @@ def print_session_table(sessions: list[dict], n: int = 10) -> None:
     print(f"\n  {'DATE':<18} {'VERDICT':<22} {'SCORE':<8} {'ΔBASE':<9} {'MODS':<6} TREND")
     print(f"  {'─'*18} {'─'*22} {'─'*8} {'─'*9} {'─'*6} {'─'*10}")
     for s in shown:
-        delta_base = s["final_score"] - WALCHE_BASELINE
+        final_score = float(s.get("final_score", 0.0))
+        date        = s.get("date") or (s.get("timestamp", "") or "")[:16].replace("T", " ")
+        real_mods   = s.get("real_modules", 0)
+        cycle_scores = s.get("cycle_scores") or [final_score]
+        verdict     = s.get("verdict", "UNKNOWN")
+
+        delta_base = final_score - WALCHE_BASELINE
         db_str = f"{delta_base:+.3f}"
         db_col = C.G if delta_base >= 0 else C.R
-        trend  = sparkline(s["cycle_scores"])
-        verd   = _verdict_col(s["verdict"])
+        trend  = sparkline(cycle_scores)
+        # Pad the raw text first, then colorize — colorizing first makes the
+        # ANSI escape bytes count toward the field width and the columns drift.
+        verd   = _verdict_col(f"{verdict:<22}")
+        db_padded = _col(f"{db_str:<9}", db_col)
         print(
-            f"  {s['date']:<18} {verd:<30} "
-            f"{_sc(s['final_score']):<16} "
-            f"{_col(db_str, db_col):<17} "
-            f"{s['real_modules']:<6} {C.D}{trend}{C.X}"
+            f"  {date:<18} {verd} "
+            f"{_sc(final_score):<16} "
+            f"{db_padded} "
+            f"{real_mods:<6} {C.D}{trend}{C.X}"
         )
 
 
@@ -220,7 +278,6 @@ def print_domain_table(sessions: list[dict], domain_filter: str | None = None) -
         if not scores:
             continue
         latest = scores[-1]
-        delta  = scores[-1] - scores[0] if len(scores) > 1 else 0.0
         trend  = sparkline(scores[-8:])
         db     = latest - WALCHE_BASELINE
         db_str = f"{db:+.3f}"
@@ -256,9 +313,8 @@ def print_proposals_summary(sessions: list[dict], n: int = 5) -> None:
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main() -> None:
-    import os as _os
     if sys.platform == "win32":
-        _os.system("")
+        os.system("")
 
     parser = argparse.ArgumentParser(
         description="WALCHE Provenance Log Viewer + Score Trend Tracker",
@@ -271,9 +327,11 @@ def main() -> None:
                         help="Update corpus/score_history.jsonl from discovered logs")
     parser.add_argument("--quiet",    action="store_true",
                         help="Suppress display output (use with --export)")
+    parser.add_argument("--root",     metavar="PATH", default=None,
+                        help="WALCHE root directory (default: auto-detected from this file's location)")
     args = parser.parse_args()
 
-    root = Path.cwd()
+    root = Path(args.root).resolve() if args.root else Path(__file__).resolve().parent.parent
 
     # ── Discover ──────────────────────────────────────────────────────────────
     discovered = discover_sessions(root)

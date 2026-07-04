@@ -104,7 +104,20 @@ class C:
     CY = "\033[96m"; B = "\033[1m"; D = "\033[2m"; X = "\033[0m"
 
 def _col(t, c):  return f"{c}{t}{C.X}"
-def _ts() -> str: return datetime.now(timezone.utc).isoformat() + "Z"
+def _ts() -> str: return datetime.now(timezone.utc).isoformat()
+
+
+def _decision_key(d: dict) -> str:
+    """Stable dedup/processed-tracking key for a council decision. Used by both
+    collect_decisions() and apply_learning() so they can never diverge — demo-log
+    verdicts carry no timestamp, so _source (the demo log filename) is required
+    to distinguish them."""
+    return (
+        f"{(d.get('timestamp') or '')[:16]}:"
+        f"{d.get('proposal_type') or ''}:"
+        f"{d.get('verdict') or ''}:"
+        f"{d.get('_source') or ''}"
+    )
 
 
 # ── State I/O ────────────────���────────────────────────────────────────────────
@@ -175,8 +188,7 @@ def collect_decisions(root: Path) -> list[dict]:
     seen: set[str] = set()
     unique: list[dict] = []
     for d in decisions:
-        # Include _source (demo log filename) to distinguish verdicts with no timestamp
-        key = f"{d.get('timestamp', '')[:16]}:{d.get('proposal_type', '')}:{d.get('verdict', '')}:{d.get('_source', '')}"
+        key = _decision_key(d)
         if key not in seen:
             seen.add(key)
             unique.append(d)
@@ -187,7 +199,8 @@ def collect_decisions(root: Path) -> list[dict]:
 
 def _map_proposal_to_dimensions(proposal_text: str, proposal_type: str) -> list[str]:
     """Return list of signal dimensions targeted by this proposal."""
-    text = (proposal_text + " " + proposal_type).lower()
+    proposal_type = proposal_type or ""
+    text = (str(proposal_text or "") + " " + proposal_type).lower()
     dims: set[str] = set()
 
     for keyword, targets in DIMENSION_MAP.items():
@@ -219,15 +232,18 @@ def apply_learning(
     state: dict,
     decisions: list[dict],
     dry_run: bool = False,
-) -> dict:
+) -> tuple[dict, dict]:
     """Apply council decisions to update signal weights. Returns updated state."""
     import copy
     new_state = copy.deepcopy(state)
     weights   = new_state["adjusted_weights"]
     log_entries: list[dict] = []
-    n_approved = 0
-    n_rejected = 0
-    n_skipped  = 0
+    n_approved       = 0
+    n_rejected       = 0
+    n_already        = 0   # decision was already applied in a prior --apply run
+    n_no_verdict     = 0   # decision carries no verdict at all
+    n_undecided      = 0   # verdict present but neither approved nor rejected
+                            # (DEADLOCKED / ESCALATED are pending, not learning signal)
 
     # Track which decisions have already been applied
     already_processed: set[str] = {
@@ -236,31 +252,36 @@ def apply_learning(
     }
 
     for decision in decisions:
-        # Build a stable key for this decision
-        dec_key = (
-            f"{decision.get('timestamp', '')[:16]}:"
-            f"{decision.get('proposal_type', '')}:"
-            f"{decision.get('verdict', '')}"
-        )
+        # Build a stable key for this decision — must match collect_decisions()
+        # exactly (including _source) or cross-run learning silently stops.
+        dec_key = _decision_key(decision)
         if dec_key in already_processed:
-            n_skipped += 1
+            n_already += 1
             continue
 
-        verdict = decision.get("verdict", decision.get("final_verdict", ""))
+        verdict = decision.get("verdict") or decision.get("final_verdict") or ""
         if not verdict:
-            n_skipped += 1
+            n_no_verdict += 1
             continue
 
         approved = _is_approved(verdict)
         rejected = _is_rejected(verdict)
         if not approved and not rejected:
-            n_skipped += 1
+            n_undecided += 1
             continue
 
-        # Get all proposals from this decision
-        proposals = decision.get("proposals", [])
-        ptype     = decision.get("proposal_type", decision.get("type", "general"))
+        # Count once per decision, not once per dimension/proposal fanout —
+        # otherwise approved_count/rejected_count overstate reality several-fold.
+        if approved:
+            n_approved += 1
+        else:
+            n_rejected += 1
 
+        # Get all proposals from this decision
+        proposals = decision.get("proposals") or []
+        ptype     = decision.get("proposal_type") or decision.get("type") or "general"
+
+        dims: list[str] = []
         for proposal in (proposals if proposals else [ptype]):
             dims = _map_proposal_to_dimensions(str(proposal), ptype)
             for dim in dims:
@@ -269,20 +290,20 @@ def apply_learning(
                 old = weights[dim]
                 if approved:
                     new = min(MAX_WEIGHT, old + LEARNING_RATE)
-                    n_approved += 1
                 else:
                     new = max(MIN_WEIGHT, old - DECAY_RATE)
-                    n_rejected += 1
 
                 if not dry_run:
                     weights[dim] = round(new, 4)
-                    new_state["dimension_history"].setdefault(dim, []).append({
+                    hist = new_state["dimension_history"].setdefault(dim, [])
+                    hist.append({
                         "ts":    _ts(),
                         "from":  old,
                         "to":    new,
                         "delta": round(new - old, 4),
                         "cause": f"{'APPROVED' if approved else 'REJECTED'} [{ptype}]",
                     })
+                    del hist[:-500]  # cap unbounded growth
 
         log_entries.append({
             "decision_key":  dec_key,
@@ -301,13 +322,16 @@ def apply_learning(
         new_state["approved_count"]    += n_approved
         new_state["rejected_count"]    += n_rejected
         new_state["learning_log"].extend(log_entries)
+        del new_state["learning_log"][:-500]  # cap unbounded growth
 
     return new_state, {
-        "new_decisions":  len(log_entries),
-        "skipped":        n_skipped,
-        "n_approved":     n_approved,
-        "n_rejected":     n_rejected,
-        "total_processed":new_state["proposals_processed"],
+        "new_decisions":   len(log_entries),
+        "already_applied": n_already,
+        "no_verdict":       n_no_verdict,
+        "undecided":        n_undecided,
+        "n_approved":       n_approved,
+        "n_rejected":       n_rejected,
+        "total_processed":  new_state["proposals_processed"],
     }
 
 
@@ -382,9 +406,11 @@ def main() -> None:
                         help="Show per-dimension weight history")
     parser.add_argument("--dim",      metavar="NAME",
                         help="Filter --history to a specific dimension")
+    parser.add_argument("--root",     metavar="PATH", default=None,
+                        help="WALCHE root directory (default: auto-detected from this file's location)")
     args = parser.parse_args()
 
-    root  = Path.cwd()
+    root  = Path(args.root).resolve() if args.root else Path(__file__).resolve().parent.parent
     state = load_state(root)
 
     if args.reset:
@@ -420,7 +446,9 @@ def main() -> None:
         print(f"  {C.B}VLL LEARNING SUMMARY{C.X}  {'(DRY RUN)' if args.dry_run else ''}")
         print(f"  {'─'*52}")
         print(f"  New decisions processed: {summary['new_decisions']}")
-        print(f"  Already processed:       {summary['skipped']}")
+        print(f"  Already applied before:  {summary['already_applied']}")
+        print(f"  No verdict / unparsable: {summary['no_verdict']}")
+        print(f"  Undecided (DEADLOCKED/ESCALATED, no learning signal): {summary['undecided']}")
         print(f"  Approved proposals:      {_col(str(summary['n_approved']), C.G)}")
         print(f"  Rejected proposals:      {_col(str(summary['n_rejected']), C.R)}")
         print(f"  Total lifetime:          {summary['total_processed']}")

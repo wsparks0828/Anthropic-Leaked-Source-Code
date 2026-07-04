@@ -1,79 +1,122 @@
+#!/usr/bin/env python3
 """
 WALCHE Auto-Fix Deployment Script
-Run from: C:\Users\wspar\Desktop\WALCHE\
-Usage:    python fix_walche.py
-"""
-import os
-import sys
-import subprocess
-import pathlib
-import re
 
-ROOT = pathlib.Path(__file__).parent.parent.resolve()
+Run from: WALCHE root (this file lives in walche_tools/)
+Usage:    python walche_tools/fix_walche.py [--upgrade-sdk] [--force]
+"""
+import argparse
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+
 
 def banner(msg):
     print(f"\n{'='*60}")
     print(f"  {msg}")
     print('='*60)
 
-def write_file(rel_path, content):
+
+def _sanity_check_root() -> None:
+    """Refuse to run if this file has been moved out of walche_tools/ —
+    following an older (wrong) version of this docstring would place the
+    file at WALCHE root and cause it to write into the wrong tree."""
+    here = Path(__file__).resolve()
+    if here.parent.name != "walche_tools":
+        print(f"  [ABORT] fix_walche.py must live inside walche_tools/ "
+              f"(found at {here.parent}) — refusing to write files.")
+        sys.exit(1)
+
+
+def write_file(rel_path, content, force=False):
     p = ROOT / rel_path
     p.parent.mkdir(parents=True, exist_ok=True)
+    if p.exists():
+        existing = p.read_text(encoding="utf-8", errors="replace")
+        if existing == content:
+            print(f"  [SKIP] {rel_path} already up to date")
+            return
+        if not force:
+            backup = p.with_suffix(p.suffix + ".bak")
+            backup.write_text(existing, encoding="utf-8")
+            print(f"  [BACKUP] {rel_path} -> {backup.name}")
     p.write_text(content, encoding="utf-8")
     print(f"  [OK] wrote {rel_path}")
 
-# ─────────────────────────────────────────────────────────────
-banner("STEP 1 — Upgrading anthropic SDK")
-# ─────────────────────────────────────────────────────────────
-subprocess.run([sys.executable, "-m", "pip", "install", "anthropic", "--upgrade", "-q"], check=False)
-print("  [OK] anthropic upgraded")
 
-# ─────────────────────────────────────────────────────────────
-banner("STEP 2 — Writing fixed backend/memory/reflection_memory.py")
-# ─────────────────────────────────────────────────────────────
-write_file("backend/memory/reflection_memory.py", '''\
-import chromadb
+def step1_upgrade_sdk(do_upgrade: bool) -> None:
+    banner("STEP 1 — Upgrading anthropic SDK")
+    if not do_upgrade:
+        print("  [SKIP] pass --upgrade-sdk to upgrade the anthropic package")
+        return
+    result = subprocess.run(
+        [sys.executable, "-m", "pip", "install", "anthropic", "--upgrade", "-q"],
+        check=False,
+    )
+    if result.returncode == 0:
+        print("  [OK] anthropic upgraded")
+    else:
+        print(f"  [FAIL] pip exited {result.returncode} — anthropic NOT upgraded")
+
+
+def step2_reflection_memory(force: bool) -> None:
+    banner("STEP 2 — Writing fixed backend/memory/reflection_memory.py")
+    write_file("backend/memory/reflection_memory.py", '''\
 import json
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
+from pathlib import Path
+
+import chromadb
 
 
 class PersistentReflectionMemory:
-    def __init__(self, path="corpus_store/reflections"):
+    def __init__(self, path=None):
+        if path is None:
+            path = str(Path(__file__).resolve().parents[2] / "corpus_store" / "reflections")
         self.client = chromadb.PersistentClient(path=path)
-        self.collection = self.client.get_or_create_collection("wachel_reflections")
+        self.collection = self.client.get_or_create_collection("walche_reflections")
 
     def add_reflection(self, reflection: dict):
         self.collection.add(
             documents=[json.dumps(reflection)],
-            ids=[f"ref_{uuid.uuid4().hex}"]
+            metadatas=[{"timestamp": datetime.now(timezone.utc).isoformat()}],
+            ids=[f"ref_{uuid.uuid4().hex}"],
         )
 
     def get_recent_reflections(self, limit=8):
         count = self.collection.count()
         if count == 0:
             return []
-        actual_limit = min(limit, count)
-        results = self.collection.get(limit=actual_limit, include=["documents"])
-        docs = results.get("documents") or []
-        return [json.loads(d) for d in docs if d]
-''')
+        results = self.collection.get(include=["documents", "metadatas"])
+        docs  = results.get("documents") or []
+        metas = results.get("metadatas") or []
+        paired = sorted(
+            zip(docs, metas),
+            key=lambda dm: dm[1].get("timestamp", ""),
+            reverse=True,
+        )
+        return [json.loads(d) for d, _ in paired[:limit] if d]
+''', force=force)
 
-# ─────────────────────────────────────────────────────────────
-banner("STEP 3 — Writing fixed backend/self_healing/langgraph_healing_graph.py")
-# ─────────────────────────────────────────────────────────────
-write_file("backend/self_healing/langgraph_healing_graph.py", '''\
+
+def step3_langgraph_healing_graph(force: bool) -> None:
+    banner("STEP 3 — Writing fixed backend/self_healing/langgraph_healing_graph.py")
+    write_file("backend/self_healing/langgraph_healing_graph.py", '''\
 from typing import TypedDict, List, Dict, Optional
 from langgraph.graph import StateGraph, END, START
-from datetime import datetime
+from datetime import datetime, timezone
 import os
 
 if not os.getenv("LANGCHAIN_API_KEY"):
     os.environ["LANGCHAIN_TRACING_V2"] = "false"
-os.environ["LANGCHAIN_PROJECT"] = "wachel-healing-prod"
+os.environ["LANGCHAIN_PROJECT"] = "walche-healing-prod"
 
 
-class WACHELHealingState(TypedDict):
+class WALCHEHealingState(TypedDict):
     raw_telemetry: Dict
     structured_telemetry: Dict
     recent_lineage: List[Dict]
@@ -87,7 +130,7 @@ class WACHELHealingState(TypedDict):
 
 # ── Nodes: return only changed fields (LangGraph 1.x requirement) ─────────────
 
-def telemetry_node(state: WACHELHealingState) -> dict:
+def telemetry_node(state: WALCHEHealingState) -> dict:
     raw = state.get("raw_telemetry") or {}
     live_report = raw.get("live_monitor_report")
     return {
@@ -99,7 +142,7 @@ def telemetry_node(state: WACHELHealingState) -> dict:
     }
 
 
-def diagnose_node(state: WACHELHealingState) -> dict:
+def diagnose_node(state: WALCHEHealingState) -> dict:
     tel = state.get("structured_telemetry") or {}
     composite = tel.get("composite_health", 0.8)
     drift = tel.get("drift", {})
@@ -129,30 +172,35 @@ def diagnose_node(state: WACHELHealingState) -> dict:
     }
 
 
-def ppo_node(state: WACHELHealingState) -> dict:
-    diagnosis = state.get("diagnosis") or {}
-    confidence = diagnosis.get("confidence", 0.5)
-    recommended = diagnosis.get("recommended_action", "partial_rollback")
+def _make_ppo_node(ppo_agent=None):
+    """Build the ppo node as a closure so a real PPORecoveryAgent (when supplied)
+    is actually consulted instead of being silently ignored."""
+    def ppo_node(state: WALCHEHealingState) -> dict:
+        diagnosis = state.get("diagnosis") or {}
+        if ppo_agent is not None:
+            decision = ppo_agent.integrate_with_healing_agent(diagnosis)
+        else:
+            confidence = diagnosis.get("confidence", 0.5)
+            recommended = diagnosis.get("recommended_action", "partial_rollback")
+            if confidence >= 0.85:
+                action = recommended
+            elif confidence >= 0.7:
+                action = "partial_rollback"
+            else:
+                action = "escalate"
+            decision = {"final_action": action, "confidence": confidence}
+        return {"ppo_decision": decision, "final_action": decision}
+    return ppo_node
 
-    if confidence >= 0.85:
-        action = recommended
-    elif confidence >= 0.7:
-        action = "partial_rollback"
-    else:
-        action = "escalate"
 
-    decision = {"final_action": action, "confidence": confidence}
-    return {"ppo_decision": decision, "final_action": decision}
-
-
-def execute_node(state: WACHELHealingState) -> dict:
+def execute_node(state: WALCHEHealingState) -> dict:
     final = state.get("final_action") or {}
     action = final.get("final_action", "unknown")
     confidence = final.get("confidence", 0.5)
     delta = round(0.05 + confidence * 0.05, 4)
     return {
         "result": {
-            "status": "success",
+            "status": "simulated",
             "action": action,
             "delta": delta,
             "confidence": confidence,
@@ -160,7 +208,7 @@ def execute_node(state: WACHELHealingState) -> dict:
     }
 
 
-def reflect_node(state: WACHELHealingState) -> dict:
+def reflect_node(state: WALCHEHealingState) -> dict:
     result = state.get("result") or {}
     diagnosis = state.get("diagnosis") or {}
     tel = state.get("structured_telemetry") or {}
@@ -171,18 +219,18 @@ def reflect_node(state: WACHELHealingState) -> dict:
             "confidence": diagnosis.get("confidence", 0.85),
             "composite_health": tel.get("composite_health", 0.8),
             "diagnosis": diagnosis.get("final_diagnosis", "unknown"),
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
     }
 
 
 # ── Graph builder ──────────────────────────────────────────────────────────────
 
-def build_wachel_healing_graph():
-    workflow = StateGraph(WACHELHealingState)
+def build_walche_healing_graph(ppo_agent=None):
+    workflow = StateGraph(WALCHEHealingState)
     workflow.add_node("telemetry", telemetry_node)
     workflow.add_node("diagnose", diagnose_node)
-    workflow.add_node("ppo", ppo_node)
+    workflow.add_node("ppo", _make_ppo_node(ppo_agent))
     workflow.add_node("execute", execute_node)
     workflow.add_node("reflect", reflect_node)
     workflow.add_edge(START, "telemetry")
@@ -196,11 +244,11 @@ def build_wachel_healing_graph():
 
 # ── Class wrapper (required by run_system.py) ──────────────────────────────────
 
-class WACHELHealingGraph:
+class WALCHEHealingGraph:
     """Class wrapper providing .run() and .invoke() over the compiled graph."""
 
     def __init__(self, ppo_agent=None, memory=None):
-        self.graph = build_wachel_healing_graph()
+        self.graph = build_walche_healing_graph(ppo_agent=ppo_agent)
         self.ppo = ppo_agent
         self.memory = memory
 
@@ -220,12 +268,12 @@ class WACHELHealingGraph:
 
     def invoke(self, state: dict) -> dict:
         return self.graph.invoke(self._prepare_state(state))
-''')
+''', force=force)
 
-# ─────────────────────────────────────────────────────────────
-banner("STEP 4 — Writing fixed backend/self_healing/ppo_recovery_agent.py")
-# ─────────────────────────────────────────────────────────────
-write_file("backend/self_healing/ppo_recovery_agent.py", '''\
+
+def step4_ppo_recovery_agent(force: bool) -> None:
+    banner("STEP 4 — Writing fixed backend/self_healing/ppo_recovery_agent.py")
+    write_file("backend/self_healing/ppo_recovery_agent.py", '''\
 import json
 import pathlib
 
@@ -249,7 +297,10 @@ class PPORecoveryAgent:
         for _ in range(iterations):
             for a in self.action_scores:
                 self.action_scores[a] = min(0.99, self.action_scores[a] + 0.001)
-        print(f"[PPO] Lightweight policy trained ({iterations} iterations)")
+        if iterations == 0:
+            print(f"[PPO] No training performed (timesteps={timesteps} too low for 1 iteration)")
+        else:
+            print(f"[PPO] Lightweight policy trained ({iterations} iterations)")
         if self.model_path:
             self._save(self.model_path)
 
@@ -269,31 +320,34 @@ class PPORecoveryAgent:
     def _save(self, path: str) -> None:
         p = pathlib.Path(path)
         p.parent.mkdir(parents=True, exist_ok=True)
-        with open(p, "w") as f:
+        with open(p, "w", encoding="utf-8") as f:
             json.dump(self.action_scores, f)
         print(f"[PPO] Policy saved to {path}")
 
     def _load(self, path: str) -> None:
         try:
-            with open(path) as f:
+            with open(path, encoding="utf-8") as f:
                 loaded = json.load(f)
             self.action_scores.update(loaded)
             print(f"[PPO] Policy loaded from {path}")
         except Exception as e:
             print(f"[PPO] Could not load policy from {path}: {e}")
-''')
+''', force=force)
 
-# ─────────────────────────────────────────────────────────────
-banner("STEP 5 — Writing fixed backend/self_healing/healing_agent.py")
-# ─────────────────────────────────────────────────────────────
-write_file("backend/self_healing/healing_agent.py", '''\
+
+def step5_healing_agent(force: bool) -> None:
+    banner("STEP 5 — Writing fixed backend/self_healing/healing_agent.py")
+    write_file("backend/self_healing/healing_agent.py", '''\
 from typing import Dict, Any, List
 import json
 
+DEFAULT_MODEL = "claude-sonnet-5"
+
 
 class NeuroSymbolicHealingAgent:
-    def __init__(self, llm_client=None):
+    def __init__(self, llm_client=None, model=DEFAULT_MODEL):
         self.llm = llm_client
+        self.model = model
         self.symbolic_rules = {
             "pricing_drift":      lambda s: s.get("accuracy_drop", 0) > 0.15,
             "lineage_incomplete": lambda s: not s.get("what_delta_present", False),
@@ -304,11 +358,11 @@ class NeuroSymbolicHealingAgent:
         if self.llm is None:
             return {"diagnosis": "drift detected (no LLM configured)", "confidence": 0.75}
 
-        # Anthropic SDK (0.34+ and 0.54+)
+        # Anthropic SDK
         if hasattr(self.llm, "messages"):
             try:
                 response = self.llm.messages.create(
-                    model="claude-3-5-sonnet-20241022",
+                    model=self.model,
                     max_tokens=256,
                     messages=[{"role": "user", "content": prompt}],
                 )
@@ -318,9 +372,9 @@ class NeuroSymbolicHealingAgent:
                 except Exception:
                     return {"diagnosis": text[:200], "confidence": 0.75}
             except Exception as e:
-                return {"diagnosis": f"LLM error: {e}", "confidence": 0.5}
+                return {"diagnosis": f"LLM error: {e}", "confidence": 0.5, "error": True}
 
-        # OpenAI SDK (v1+ and v2+)
+        # OpenAI SDK
         if hasattr(self.llm, "chat"):
             try:
                 response = self.llm.chat.completions.create(
@@ -334,14 +388,14 @@ class NeuroSymbolicHealingAgent:
                 except Exception:
                     return {"diagnosis": text[:200], "confidence": 0.75}
             except Exception as e:
-                return {"diagnosis": f"LLM error: {e}", "confidence": 0.5}
+                return {"diagnosis": f"LLM error: {e}", "confidence": 0.5, "error": True}
 
         return {"diagnosis": "drift detected (unknown LLM type)", "confidence": 0.7}
 
     def diagnose(self, drift_signal: Dict, lineage: List[Dict]) -> Dict:
         prompt = (
             "Analyze this drift and lineage. "
-            "Return JSON with keys \'diagnosis\' (string) and \'confidence\' (0.0-1.0).\\n"
+            "Return JSON with keys 'diagnosis' (string) and 'confidence' (0.0-1.0).\\n"
             f"Drift: {json.dumps(drift_signal)}\\n"
             f"Lineage sample: {json.dumps(lineage[-3:] if lineage else [])}"
         )
@@ -364,25 +418,25 @@ class NeuroSymbolicHealingAgent:
         }
 
     def execute_healing(self, action: Dict) -> Dict:
-        print(f"[HealingAgent] Executed: {action[\'action\']}")
-        return {"status": "success", "message": f"Healing applied: {action[\'action\']}"}
-''')
+        print(f"[HealingAgent] Executed: {action['action']}")
+        return {"status": "success", "message": f"Healing applied: {action['action']}"}
+''', force=force)
 
-# ─────────────────────────────────────────────────────────────
-banner("STEP 6 — Writing fixed scripts/train_and_integrate_healing_system.py")
-# ─────────────────────────────────────────────────────────────
-write_file("scripts/train_and_integrate_healing_system.py", '''\
+
+def step6_train_and_integrate(force: bool) -> None:
+    banner("STEP 6 — Writing fixed scripts/train_and_integrate_healing_system.py")
+    write_file("scripts/train_and_integrate_healing_system.py", '''\
 import os
 import sys
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, project_root)
 
 from backend.self_healing.langgraph_healing_graph import (
-    WACHELHealingGraph,
-    build_wachel_healing_graph,
+    WALCHEHealingGraph,
+    build_walche_healing_graph,
 )
 from backend.self_healing.ppo_recovery_agent import PPORecoveryAgent
 from backend.memory.reflection_memory import PersistentReflectionMemory
@@ -395,7 +449,7 @@ except Exception as e:
     WALCHE_LIVE_AVAILABLE = False
     print(f"[WALCHE] Live components limited: {e}")
 
-print("=== WACHEL Self-Healing System - Full Training & Boot ===")
+print("=== WALCHE Self-Healing System - Full Training & Boot ===")
 
 # 1. Train PPO
 print("[1] Training PPO Recovery Agent...")
@@ -404,7 +458,7 @@ ppo.train(timesteps=5000)
 
 # 2. Build Graph
 print("[2] Building LangGraph healing graph...")
-graph = WACHELHealingGraph(ppo_agent=ppo)
+graph = WALCHEHealingGraph(ppo_agent=ppo)
 
 # 3. Persistent Memory
 print("[3] Initializing Persistent Reflection Memory...")
@@ -439,89 +493,187 @@ result = graph.run(state)
 reflection = result.get("reflection")
 if reflection:
     memory.add_reflection(reflection)
-    print(f"  [Memory] Stored reflection: action={reflection.get(\'action\')}, delta={reflection.get(\'delta\')}")
+    print(f"  [Memory] Stored reflection: action={reflection.get('action')}, delta={reflection.get('delta')}")
 else:
     print("  [Memory] No reflection to store")
 
-print("\\n=== WACHEL Self-Healing System Fully Operational ===")
-print(f"Boot time: {datetime.utcnow().isoformat()}")
-print(f"Action taken: {(result.get(\'final_action\') or {}).get(\'final_action\', \'unknown\')}")
-print(f"Result delta: {(result.get(\'result\') or {}).get(\'delta\', 0):+.4f}")
+print("\\n=== WALCHE Self-Healing System Fully Operational ===")
+print(f"Boot time: {datetime.now(timezone.utc).isoformat()}")
+print(f"Action taken: {(result.get('final_action') or {}).get('final_action', 'unknown')}")
+print(f"Result delta: {(result.get('result') or {}).get('delta', 0):+.4f}")
 print(f"Live WALCHE data used: {WALCHE_LIVE_AVAILABLE}")
 print("Components active: LangGraph + PPO + NeuroSymbolic + Persistent Memory")
-''')
+''', force=force)
 
-# ─────────────────────────────────────────────────────────────
-banner("STEP 7 — Patching run_system.py (surgical in-place fixes)")
-# ─────────────────────────────────────────────────────────────
-run_sys = ROOT / "run_system.py"
-if not run_sys.exists():
-    print("  [SKIP] run_system.py not found — skipping patch")
-else:
-    src = run_sys.read_text(encoding="utf-8", errors="replace")
+
+def _skip_preamble_index(lines: list[str]) -> int:
+    """Return the line index after shebang/encoding comments, blank lines,
+    a leading module docstring, and any `from __future__ import` lines —
+    the safe insertion point for a prepended code block."""
+    idx = 0
+    n = len(lines)
+    while idx < n and (lines[idx].startswith("#") or lines[idx].strip() == ""):
+        idx += 1
+    if idx < n:
+        stripped = lines[idx].lstrip()
+        for quote in ('"""', "'''"):
+            if stripped.startswith(quote):
+                rest_after_open = stripped[len(quote):]
+                if quote in rest_after_open:
+                    idx += 1  # single-line docstring
+                else:
+                    idx += 1
+                    while idx < n and quote not in lines[idx]:
+                        idx += 1
+                    if idx < n:
+                        idx += 1  # move past the closing line
+                break
+    while idx < n and (lines[idx].startswith("#") or lines[idx].strip() == ""):
+        idx += 1
+    while idx < n and lines[idx].lstrip().startswith("from __future__ import"):
+        idx += 1
+    return idx
+
+
+def step7_patch_run_system() -> None:
+    banner("STEP 7 — Patching run_system.py (surgical in-place fixes)")
+    run_sys = ROOT / "run_system.py"
+    if not run_sys.exists():
+        print("  [SKIP] run_system.py not found — skipping patch")
+        return
+
+    try:
+        src = run_sys.read_text(encoding="utf-8")
+    except UnicodeDecodeError as e:
+        print(f"  [ABORT] run_system.py is not valid UTF-8 ({e}) — refusing to "
+              f"patch a file we cannot safely round-trip")
+        return
     original = src
 
-    # Fix 1: add UTF-8 stdout fix right after the first import block
-    utf8_fix = (
-        "import io\n"
-        "import sys\n"
-        "sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')\n"
-    )
+    preamble_blocks = []
+
+    # Fix 1: add UTF-8 stdout fix
     if "TextIOWrapper" not in src:
-        # Insert at very top (after any existing coding comment / shebang)
-        lines = src.splitlines(keepends=True)
-        insert_at = 0
-        for i, line in enumerate(lines):
-            if line.startswith("#") or line.strip() == "":
-                insert_at = i + 1
-            else:
-                break
-        lines.insert(insert_at, utf8_fix)
-        src = "".join(lines)
-        print("  [PATCH] Added UTF-8 stdout fix")
+        preamble_blocks.append(
+            "import io\n"
+            "import sys\n"
+            "sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')\n"
+        )
+        print("  [PATCH] Will add UTF-8 stdout fix")
     else:
         print("  [SKIP]  UTF-8 fix already present")
 
-    # Fix 2: remove bad OSMODAIngestionManager import
-    src = re.sub(
+    # Fix 2: remove bad OSMODAIngestionManager import, stub the symbol so a
+    # remaining call site fails with a clear error instead of a bare NameError
+    src, n1 = re.subn(
         r"^\s*from\s+\S*osmoda\S*\s+import\s+OSMODAIngestionManager.*\n",
         "",
         src,
         flags=re.IGNORECASE | re.MULTILINE,
     )
-    src = re.sub(
+    src, n2 = re.subn(
         r"^\s*import\s+\S*osmoda\S*.*\n",
         "",
         src,
         flags=re.IGNORECASE | re.MULTILINE,
     )
+    if n1 or n2:
+        preamble_blocks.append(
+            "class OSMODAIngestionManager:\n"
+            "    def __init__(self, *a, **kw):\n"
+            "        raise RuntimeError(\n"
+            "            'OSMODAIngestionManager was removed by fix_walche.py "
+            "(osmoda dependency retired) — update run_system.py to remove this usage'\n"
+            "        )\n"
+        )
+        print(f"  [PATCH] Removed {n1 + n2} osmoda import line(s), stubbed the symbol")
 
-    # Fix 3: ensure run_knowledge_injection returns its value
-    src = re.sub(
-        r"(def run_knowledge_injection\(.*?\):.*?)(ingestion_manager\.run\(\))",
-        r"\1return \2",
-        src,
-        flags=re.DOTALL,
-    )
+    if preamble_blocks:
+        lines = src.splitlines(keepends=True)
+        idx = _skip_preamble_index(lines)
+        for block in reversed(preamble_blocks):
+            lines.insert(idx, block)
+        src = "".join(lines)
 
-    if src != original:
-        run_sys.write_text(src, encoding="utf-8")
-        print("  [OK] run_system.py patched")
+    # Fix 3: ensure run_knowledge_injection returns its value — idempotent and
+    # scoped to a bare `ingestion_manager.run()` statement line only, so a
+    # second run (or an already-fixed file) is a safe no-op instead of
+    # producing `return return ingestion_manager.run()` / a SyntaxError.
+    if re.search(r"return\s+ingestion_manager\.run\(\)", src):
+        print("  [SKIP]  run_knowledge_injection already returns ingestion_manager.run()")
     else:
-        print("  [INFO] run_system.py — no further patches needed")
+        new_src, n3 = re.subn(
+            r"(?m)^(\s*)ingestion_manager\.run\(\)\s*$",
+            r"\1return ingestion_manager.run()",
+            src,
+            count=1,
+        )
+        if n3:
+            src = new_src
+            print("  [PATCH] run_knowledge_injection now returns ingestion_manager.run()")
+        else:
+            print("  [WARN]  Could not find a bare 'ingestion_manager.run()' statement "
+                  "line to patch — skipped (manual review needed)")
 
-# ─────────────────────────────────────────────────────────────
-banner("ALL DONE")
-# ─────────────────────────────────────────────────────────────
-print("""
+    if src == original:
+        print("  [INFO] run_system.py — no further patches needed")
+        return
+
+    try:
+        compile(src, str(run_sys), "exec")
+    except SyntaxError as e:
+        print(f"  [ABORT] Patched run_system.py would not compile ({e}) — "
+              f"writing nothing, original file left untouched")
+        return
+
+    backup = run_sys.with_suffix(".py.bak")
+    if not backup.exists():
+        backup.write_text(original, encoding="utf-8")
+        print(f"  [BACKUP] run_system.py -> {backup.name}")
+    _tmp = run_sys.with_suffix(".py.tmp")
+    _tmp.write_text(src, encoding="utf-8")
+    _tmp.replace(run_sys)
+    print("  [OK] run_system.py patched")
+
+
+def main(argv=None) -> None:
+    parser = argparse.ArgumentParser(description="WALCHE Auto-Fix Deployment Script")
+    parser.add_argument("--upgrade-sdk", action="store_true",
+                        help="Also run `pip install --upgrade anthropic` (network action)")
+    parser.add_argument("--force", action="store_true",
+                        help="Overwrite deployed files without writing .bak backups")
+    args = parser.parse_args(argv)
+
+    _sanity_check_root()
+
+    step1_upgrade_sdk(args.upgrade_sdk)
+    step2_reflection_memory(args.force)
+    step3_langgraph_healing_graph(args.force)
+    step4_ppo_recovery_agent(args.force)
+    step5_healing_agent(args.force)
+    step6_train_and_integrate(args.force)
+    step7_patch_run_system()
+
+    banner("ALL DONE")
+    print("""
 Files fixed:
-  backend/memory/reflection_memory.py          -- ChromaDB empty-collection crash fixed
-  backend/self_healing/langgraph_healing_graph.py -- LangGraph 1.x nodes + WACHELHealingGraph class
-  backend/self_healing/ppo_recovery_agent.py   -- PPO saves policy, removed numpy
-  backend/self_healing/healing_agent.py        -- LLM SDK calls fixed, llm optional
-  scripts/train_and_integrate_healing_system.py -- imports WACHELHealingGraph, stores reflection
-  run_system.py                                -- UTF-8 fix + import cleanup
+  backend/memory/reflection_memory.py             -- ChromaDB empty-collection crash fixed
+  backend/self_healing/langgraph_healing_graph.py -- LangGraph 1.x nodes + WALCHEHealingGraph class
+  backend/self_healing/ppo_recovery_agent.py      -- PPO saves policy, removed numpy
+  backend/self_healing/healing_agent.py           -- LLM SDK calls fixed, llm optional
+  scripts/train_and_integrate_healing_system.py   -- imports WALCHEHealingGraph, stores reflection
+  run_system.py                                   -- UTF-8 fix + import cleanup (if present)
+
+NOTE: deployed files/identifiers were renamed WACHEL -> WALCHE (the project's
+own corpus records WACHEL/WACHLE as a resolved naming mistake). If an earlier
+run of this script already created data under the ChromaDB collection name
+"wachel_reflections", that data will NOT be migrated automatically — move it
+to "walche_reflections" by hand if you need it.
 
 Next step:
   python run_system.py --phase test
 """)
+
+
+if __name__ == "__main__":
+    main()
