@@ -46,7 +46,7 @@ import sys
 import textwrap
 import time
 from dataclasses import asdict, dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -138,12 +138,11 @@ def extract_module_entries(path: Path, root: Path) -> list[CorpusEntry]:
 
     rel_path = str(path.relative_to(root))
     entries: list[CorpusEntry] = []
-    now = datetime.utcnow().isoformat() + "Z"
+    now = datetime.now(timezone.utc).isoformat()
 
     # ── Module-level docstring ─────────────────────────────────────────────────
     module_doc = ast.get_docstring(tree) or ""
     module_name = path.stem
-    module_parts = rel_path.replace("\\", "/").replace("/", ".").rstrip(".py")
 
     module_content_parts = [f"Module: {module_name}", f"Path: {rel_path}"]
     if module_doc:
@@ -487,7 +486,7 @@ def run_ingest(
 
         kb = {
             "version": INGEST_VERSION,
-            "generated_at": datetime.utcnow().isoformat() + "Z",
+            "generated_at": datetime.now(timezone.utc).isoformat(),
             "scan_root": str(root),
             "stats": {
                 "files_scanned": report.files_scanned,
@@ -836,7 +835,7 @@ def extract_log_entries(path: Path, log_dir: Path) -> list[CorpusEntry]:
         return []
 
     rel = str(path.relative_to(log_dir))
-    now = datetime.utcnow().isoformat() + "Z"
+    now = datetime.now(timezone.utc).isoformat()
     suffix = path.suffix.lower()
     entries: list[CorpusEntry] = []
 
@@ -1039,7 +1038,7 @@ def run_log_ingest(
 
         kb = {
             "version":      INGEST_VERSION,
-            "generated_at": datetime.utcnow().isoformat() + "Z",
+            "generated_at": datetime.now(timezone.utc).isoformat(),
             "scan_root":    str(log_root),
             "stats": {
                 "files_scanned":             report.files_scanned,

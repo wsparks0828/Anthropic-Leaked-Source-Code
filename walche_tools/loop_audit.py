@@ -285,15 +285,23 @@ def c9_self_tests() -> Check:
                      "No test files found", 1.0)
     passed = failed = 0
     for tf in test_files[:6]:
+        proc = None
         try:
-            result = subprocess.run(
+            proc = subprocess.Popen(
                 [sys.executable, "-m", "pytest", str(tf), "-x", "-q", "--tb=no"],
-                capture_output=True, text=True, timeout=30, cwd=str(ROOT)
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                cwd=str(ROOT),
             )
-            if result.returncode == 0:
+            proc.communicate(timeout=30)
+            if proc.returncode == 0:
                 passed += 1
             else:
                 failed += 1
+        except subprocess.TimeoutExpired:
+            if proc is not None:
+                proc.kill()
+                proc.communicate()
+            failed += 1
         except Exception:
             failed += 1
     total = passed + failed

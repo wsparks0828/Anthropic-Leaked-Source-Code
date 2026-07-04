@@ -175,7 +175,8 @@ def collect_decisions(root: Path) -> list[dict]:
     seen: set[str] = set()
     unique: list[dict] = []
     for d in decisions:
-        key = f"{d.get('timestamp', '')[:16]}:{d.get('proposal_type', '')}:{d.get('verdict', '')}"
+        # Include _source (demo log filename) to distinguish verdicts with no timestamp
+        key = f"{d.get('timestamp', '')[:16]}:{d.get('proposal_type', '')}:{d.get('verdict', '')}:{d.get('_source', '')}"
         if key not in seen:
             seen.add(key)
             unique.append(d)

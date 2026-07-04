@@ -244,7 +244,7 @@ def main() -> None:
     if args.json:
         status = {
             "last_run":         last_log,
-            "corpus_kb_stats":  ({**(kb.get("stats")), "generated_at": kb.get("generated_at")} if kb.get("stats") is not None else None) if kb else None,
+            "corpus_kb_stats":  ({**kb["stats"], "generated_at": kb.get("generated_at")} if isinstance(kb.get("stats"), dict) else None) if kb else None,
             "council_decisions":council,
             "vll_state":        vll,
             "score_trend":      trend,

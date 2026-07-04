@@ -586,7 +586,15 @@ def main(argv=None):
         "domain_results": [[{k: v for k, v in r.items() if k != "proposals"}
                              for r in cycle] for cycle in all_results],
     }
-    log_path.write_text(json.dumps(log_entry, indent=2))
+    _tmp_log = log_path.with_suffix(".tmp")
+    _tmp_log.write_text(json.dumps(log_entry, indent=2), encoding="utf-8")
+    os.replace(_tmp_log, log_path)
+
+    # Append to score history so walche_status.py score trend is populated
+    score_history_path = ROOT / "corpus" / "score_history.jsonl"
+    score_history_path.parent.mkdir(parents=True, exist_ok=True)
+    with score_history_path.open("a", encoding="utf-8") as _sf:
+        _sf.write(json.dumps({"timestamp": ts, "final_score": final_score, "verdict": verdict}) + "\n")
 
     print(f"\n  {C.DIM}Provenance log: {log_path}{C.RESET}")
     if args.council and council_verdicts:

@@ -147,21 +147,28 @@ class WalcheHandler(BaseHTTPRequestHandler):
     # ── routing ──────────────────────────────────────────────────────────────
 
     def do_GET(self) -> None:
-        path = urlparse(self.path).path.rstrip("/") or "/"
+        try:
+            path = urlparse(self.path).path.rstrip("/") or "/"
 
-        if path in ("/", "/index.html"):
-            self._send_html(DASHBOARD_HTML)
-        elif path == "/api/status":
-            self._send_json(_run_status_json())
-        elif path == "/api/log":
-            self._send_json(_latest_demo_log())
-        elif path == "/api/council":
-            self._send_json(_council_decisions())
-        elif path == "/api/health":
-            self._send_json({"ok": True, "root": str(WALCHE_ROOT)})
-        else:
-            self.send_response(404)
-            self.end_headers()
+            if path in ("/", "/index.html"):
+                self._send_html(DASHBOARD_HTML)
+            elif path == "/api/status":
+                self._send_json(_run_status_json())
+            elif path == "/api/log":
+                self._send_json(_latest_demo_log())
+            elif path == "/api/council":
+                self._send_json(_council_decisions())
+            elif path == "/api/health":
+                self._send_json({"ok": True, "root": str(WALCHE_ROOT)})
+            else:
+                self.send_response(404)
+                self.end_headers()
+        except Exception as _exc:
+            try:
+                self._send_json({"error": "Internal server error"}, status=500)
+            except Exception:
+                pass
+            print(f"  [ERROR] Handler exception: {_exc}")
 
     def do_OPTIONS(self) -> None:
         self.send_response(200)
