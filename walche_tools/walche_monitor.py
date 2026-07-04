@@ -44,7 +44,13 @@ def _sc(v):
     c = C.G if v >= PASS_THRESHOLD else C.Y if v >= DEFAULT_THRESHOLD else C.R
     return _col(f"{v:.3f}", c)
 def _ts() -> str:
+    """Human-readable timestamp for console/log-line display."""
     return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+def _iso_ts() -> str:
+    """ISO-8601 timestamp for machine-parsed JSON records — every other
+    WALCHE tool's records use this format; a display-formatted timestamp
+    here would silently break parsing wherever alert records are consumed."""
+    return datetime.now(timezone.utc).isoformat()
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 
@@ -62,7 +68,7 @@ class MonitorLog:
 
     def alert(self, domain: str, score: float, threshold: float, details: dict) -> None:
         record = {
-            "timestamp": _ts(),
+            "timestamp": _iso_ts(),
             "type":      "SCORE_DEGRADATION",
             "domain":    domain,
             "score":     score,
@@ -100,20 +106,24 @@ def _read_latest_scores(root: Path) -> dict[str, float] | None:
     return None
 
 
-def _run_live_check(root: Path) -> dict[str, float] | None:
+def _synthetic_probe_check(root: Path) -> dict[str, float] | None:
     """
-    Run WALCHE modules directly to get fresh domain scores.
-    Falls back to reading the latest log if modules aren't importable.
+    Score a fixed set of PROBE signals through the real RubricScorer, if
+    importable. These signal values are NOT a live measurement of the actual
+    WALCHE modules — they are a static fixture used only to exercise the
+    scorer when no real demo log exists yet. Callers must label this
+    distinctly from "log" data; see _run_live_check().
     """
     if str(root) not in sys.path:
         sys.path.insert(0, str(root))
 
-    scores: dict[str, float] = {}
     try:
         from core.rubric import RubricScorer
-        from core.config import WalcheConfig
+    except Exception:
+        return None
 
-        cfg    = WalcheConfig()
+    scores: dict[str, float] = {}
+    try:
         scorer = RubricScorer(threshold=PASS_THRESHOLD)
 
         domains = {
@@ -128,10 +138,10 @@ def _run_live_check(root: Path) -> dict[str, float] | None:
         }
 
         # Apply VLL weight adjustments if available
-        vll_path = root / "corpus/vll_state.json"
+        vll_path = root / "corpus" / "vll_state.json"
         if vll_path.exists():
             try:
-                vll = json.loads(vll_path.read_text())
+                vll = json.loads(vll_path.read_text(encoding="utf-8"))
                 adj = vll.get("adjusted_weights", {})
                 for domain_name, sigs in domains.items():
                     domains[domain_name] = {
@@ -150,9 +160,24 @@ def _run_live_check(root: Path) -> dict[str, float] | None:
             scores[domain_name] = score
 
         return scores
+    except Exception:
+        return None
 
-    except ImportError:
-        return _read_latest_scores(root)
+
+def _run_live_check(root: Path) -> tuple[dict[str, float], str] | tuple[None, None]:
+    """
+    Return (scores, source). Prefers real scores from the most recent
+    walche_demo.py log ("log"); falls back to the labeled synthetic probe
+    ("synthetic") only when no log exists yet. Returns (None, None) if
+    neither source is available.
+    """
+    logged = _read_latest_scores(root)
+    if logged is not None:
+        return logged, "log"
+    synthetic = _synthetic_probe_check(root)
+    if synthetic is not None:
+        return synthetic, "synthetic"
+    return None, None
 
 
 def _trigger_healing(root: Path, log: MonitorLog) -> bool:
@@ -240,14 +265,19 @@ def run_monitor(
 
     while True:
         check_num += 1
-        scores = _run_live_check(root)
+        scores, source = _run_live_check(root)
 
         if scores is None:
-            log.write("Could not read domain scores — no log files found", "WARN")
+            log.write("Could not read domain scores — no log files found and "
+                      "core.rubric not importable", "WARN")
             if once:
                 break
             time.sleep(interval)
             continue
+
+        if source == "synthetic" and check_num == 1:
+            log.write("No walche_demo.py log found yet — scoring a synthetic "
+                      "probe fixture, NOT a live measurement", "WARN")
 
         _print_status(scores, threshold, check_num)
 
@@ -256,12 +286,12 @@ def run_monitor(
         if failing:
             for domain, score in failing.items():
                 log.alert(domain, score, threshold,
-                          {"scores": scores, "check_num": check_num})
+                          {"scores": scores, "check_num": check_num, "source": source})
 
             if heal_on_fail and not alert_only and heal_cooldown <= 0:
-                healed = _trigger_healing(root, log)
-                if healed:
-                    heal_cooldown = 3  # wait 3 checks before healing again
+                _trigger_healing(root, log)
+                heal_cooldown = 3  # back off regardless of outcome — a failing
+                                   # heal should not retry every single check
             elif heal_on_fail and heal_cooldown > 0:
                 log.write(f"Heal suppressed (cooldown: {heal_cooldown} checks remaining)", "INFO")
         else:
@@ -299,10 +329,15 @@ def main() -> None:
                         help="Log alerts only — do not trigger healing even with --heal-on-fail")
     parser.add_argument("--once",        action="store_true",
                         help="Run a single check and exit")
+    parser.add_argument("--root",        metavar="PATH", default=None,
+                        help="WALCHE root directory (default: auto-detected from this file's location)")
     args = parser.parse_args()
+    if args.interval < 1:
+        parser.error("--interval must be at least 1 second")
 
+    root = Path(args.root).resolve() if args.root else Path(__file__).resolve().parent.parent
     run_monitor(
-        root         = Path.cwd(),
+        root         = root,
         interval     = args.interval,
         threshold    = args.threshold,
         heal_on_fail = args.heal_on_fail,

@@ -16,13 +16,13 @@ Endpoints:
     GET /api/status    → walche_status.py --json output (full system state)
     GET /api/log       → latest walche_demo_*.json raw log
     GET /api/council   → last 20 grand council decisions
+    GET /api/alerts    → last 20 walche_monitor.py score-degradation alerts
     GET /api/health    → server heartbeat {"ok": true}
 """
 from __future__ import annotations
 
 import argparse
 import json
-import os
 import subprocess
 import sys
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -111,12 +111,27 @@ def _council_decisions(n: int = 20) -> list[dict]:
     return records[-n:]
 
 
+def _monitor_alerts(n: int = 20) -> list[dict]:
+    """walche_monitor.py writes logs/walche_alerts.jsonl but nothing served it
+    to the operator console until now."""
+    path = WALCHE_ROOT / "logs" / "walche_alerts.jsonl"
+    if not path.exists():
+        return []
+    records: list[dict] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        try:
+            records.append(json.loads(line))
+        except Exception:
+            pass
+    return records[-n:]
+
+
 # ── HTTP handler ───────────────────────────────────────────────────────────────
 
 class WalcheHandler(BaseHTTPRequestHandler):
     """Minimal HTTP handler — serves the dashboard and data endpoints."""
 
-    def log_message(self, fmt: str, *args) -> None:  # suppress default access log
+    def log_message(self, fmt: str, *args) -> None:  # custom access log format
         print(f"  {self.address_string()}  {fmt % args}")
 
     # ── response helpers ─────────────────────────────────────────────────────
@@ -158,6 +173,8 @@ class WalcheHandler(BaseHTTPRequestHandler):
                 self._send_json(_latest_demo_log())
             elif path == "/api/council":
                 self._send_json(_council_decisions())
+            elif path == "/api/alerts":
+                self._send_json(_monitor_alerts())
             elif path == "/api/health":
                 self._send_json({"ok": True, "root": str(WALCHE_ROOT)})
             else:

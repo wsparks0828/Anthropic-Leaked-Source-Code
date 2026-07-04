@@ -6,8 +6,8 @@ Shows current WALCHE state at a glance: domain scores, last verdict, corpus
 stats, council decisions, and score delta vs baseline.
 
 Usage (from WALCHE root):
-    python walche_tools\walche_status.py
-    python walche_tools\walche_status.py --json
+    python walche_tools/walche_status.py
+    python walche_tools/walche_status.py --json
 """
 from __future__ import annotations
 
@@ -131,7 +131,7 @@ def _section(title: str) -> None:
 
 
 def _print_last_run(log: dict) -> None:
-    ts   = log.get("timestamp", "")
+    ts   = log.get("timestamp") or ""
     age  = _age(ts)
     v    = log.get("verdict", "UNKNOWN")
     fs   = float(log.get("final_score", 0.0))
@@ -185,11 +185,25 @@ def _print_council(decisions: list[dict]) -> None:
         print(f"  {C.D}No council decisions logged yet{C.X}")
         return
     for d in reversed(decisions[-3:]):
-        ts  = d.get("timestamp", "")[:10]
+        ts  = (d.get("timestamp") or "")[:10]
         t   = d.get("proposal_type", d.get("type", "?"))
-        v   = str(d.get("verdict", d.get("final_verdict", "?")) or "?")
-        vc  = C.G if "APPROVE" in v.upper() or v == "GO" else \
-              C.Y if "CONDITION" in v.upper() else C.R
+        v   = str(d.get("verdict") or d.get("final_verdict") or "?")
+        vu  = v.upper()
+        # Council's verdict vocabulary is APPROVED/REJECTED/DEADLOCKED/ESCALATED,
+        # distinct from the healing loop's GO/GO-WITH-CONDITIONS/NO-GO — both are
+        # handled here since this panel can show either kind of decision.
+        if "APPROVE" in vu or vu == "GO":
+            vc = C.G
+        elif "CONDITION" in vu:
+            vc = C.Y
+        elif "REJECT" in vu or vu == "NO-GO" or "DENY" in vu or "VETO" in vu:
+            vc = C.R
+        elif vu == "DEADLOCKED":
+            vc = C.Y   # pending/no-consensus, not a rejection
+        elif vu == "ESCALATED":
+            vc = C.CY  # pending escalation, not a rejection
+        else:
+            vc = C.D   # unknown verdict — neutral, not red
         print(f"  {ts}  [{t:<18}]  {_col(v, vc)}")
 
 
@@ -231,9 +245,11 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="WALCHE Health Dashboard")
     parser.add_argument("--json", action="store_true",
                         help="Output status as JSON instead of formatted display")
+    parser.add_argument("--root", metavar="PATH", default=None,
+                        help="WALCHE root directory (default: auto-detected from this file's location)")
     args = parser.parse_args()
 
-    root = Path.cwd()
+    root = Path(args.root).resolve() if args.root else Path(__file__).resolve().parent.parent
     last_log  = _latest_log(root)
     kb        = _corpus_kb(root)
     council   = _council_log(root)
@@ -308,7 +324,6 @@ def main() -> None:
         if fs < PASS_THRESHOLD:
             gap = PASS_THRESHOLD - fs
             print(f"  {C.Y}↑ corpus.integrity {gap:.3f} below PASS — feed corpus or run more cycles{C.X}")
-        rm = int(last_log.get("real_modules", 0))
         sm = int(last_log.get("stub_modules", 0))
         if sm > 0:
             print(f"  {C.Y}↑ {sm} modules still on stubs — check WALCHE install{C.X}")
