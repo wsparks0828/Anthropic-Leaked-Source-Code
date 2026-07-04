@@ -3,6 +3,11 @@
 WALCHE Minimum Viable Demo
 Run from your WALCHE root:  python walche_demo.py
 Works whether core modules are healthy or broken — shows the live loop either way.
+
+Options:
+  --council         Route high-impact healing proposals through the Grand Council
+  --api-key KEY     Anthropic API key for real Council agent deliberation
+  --cycles N        Number of healing cycles (default: 4)
 """
 import sys
 import os
@@ -10,6 +15,7 @@ import time
 import json
 import random
 import traceback
+import argparse
 from pathlib import Path
 from datetime import datetime, timezone
 from dataclasses import dataclass, field
@@ -316,9 +322,129 @@ def run_cycle(
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
-def main():
+# ── Council auto-trigger ──────────────────────────────────────────────────────
+
+# Keyword → proposal_type mapping for council routing
+_PROPOSAL_TYPE_KEYWORDS: Dict[str, List[str]] = {
+    "token_strategy": ["max_history", "cache", "token", "batch", "compress", "throttle",
+                       "rate_limit", "prompt_cache", "budget"],
+    "security":       ["guardrail", "security", "unauthorized", "deception", "trust",
+                       "safe", "risk", "veto", "block"],
+    "corpus":         ["corpus", "provenance", "ingest", "lineage", "knowledge", "seed",
+                       "ingestion", "quality"],
+    "retrieval":      ["retrieval", "memory", "recall", "context", "rag", "embed",
+                       "vector", "search"],
+    "healing":        ["heal", "repair", "fix", "patch", "recover", "rubric", "score",
+                       "threshold", "cycle"],
+}
+
+def _classify_proposal(text: str) -> str:
+    text_lower = text.lower()
+    for ptype, keywords in _PROPOSAL_TYPE_KEYWORDS.items():
+        if any(kw in text_lower for kw in keywords):
+            return ptype
+    return "general"
+
+
+def _run_council_deliberation(
+    proposals: List[str],
+    api_key: Optional[str] = None,
+    quiet: bool = False,
+) -> List[Dict]:
+    """Route high-impact proposals through the Grand Council. Returns verdicts."""
+    verdicts: List[Dict] = []
+
+    # Try to import council_of_9 from walche_tools/
+    try:
+        council_dir = ROOT / "walche_tools"
+        if str(council_dir) not in sys.path:
+            sys.path.insert(0, str(council_dir))
+        from council_of_9 import deliberate
+    except ImportError:
+        if not quiet:
+            print(f"  {warn('[COUNCIL]')} council_of_9.py not found in walche_tools/ — skipping")
+        return []
+
+    # Group proposals by type; only route token_strategy and security to council
+    # (other types are informational — council governs Law 11 changes)
+    governance_types = {"token_strategy", "security"}
+    grouped: Dict[str, List[str]] = {}
+    for p in proposals:
+        ptype = _classify_proposal(p)
+        grouped.setdefault(ptype, []).append(p)
+
+    to_deliberate = {k: v for k, v in grouped.items() if k in governance_types}
+    if not to_deliberate:
+        if not quiet:
+            print(f"  {hi('[COUNCIL]')} No governance-required proposals in this run  "
+                  f"{C.DIM}(token_strategy / security){C.RESET}")
+        return []
+
+    print(f"\n  {bold('GRAND COUNCIL DELIBERATION')}")
+    print(f"  {'─'*54}")
+    print(f"  {C.DIM}Routing {sum(len(v) for v in to_deliberate.values())} proposals "
+          f"through governance…{C.RESET}")
+
+    for ptype, group in to_deliberate.items():
+        # Summarise the group as a single proposal text
+        summary = f"Healing proposals [{ptype}]: " + " | ".join(group[:3])
+        tier = "standard"  # Council of 5 → Council of 9
+
+        try:
+            result = deliberate(
+                proposal=summary,
+                proposal_type=ptype,
+                tier=tier,
+                api_key=api_key,
+            )
+        except Exception as e:
+            print(f"  {warn('[COUNCIL]')} Deliberation error: {e}")
+            continue
+
+        final = result.get("final_result", {})
+        verdict_val = final.get("verdict", "UNKNOWN")
+        score = float(final.get("score", 0.0))
+        reasoning = final.get("reasoning", "")[:80]
+
+        v_color = C.GREEN if verdict_val in ("APPROVED", "GO") else \
+                  C.YELLOW if "CONDITION" in verdict_val else C.RED
+        v_str = _col(verdict_val, v_color)
+
+        print(f"\n  [{bold(ptype.upper())}]")
+        print(f"    Council verdict:  {v_str}")
+        print(f"    Score:            {score:.3f}")
+        if reasoning:
+            print(f"    {C.DIM}↳ {reasoning}{C.RESET}")
+
+        verdicts.append({
+            "proposal_type": ptype,
+            "proposals":     group,
+            "verdict":       verdict_val,
+            "score":         score,
+            "reasoning":     reasoning,
+            "tier":          tier,
+        })
+
+    return verdicts
+
+
+def _col(text, color): return f"{color}{text}{C.RESET}"
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description="WALCHE Minimum Viable Demo",
+                                     add_help=False)
+    parser.add_argument("--council",  action="store_true",
+                        help="Route high-impact proposals through the Grand Council")
+    parser.add_argument("--api-key",  metavar="KEY", default=None,
+                        help="Anthropic API key for real Council agents")
+    parser.add_argument("--cycles",   type=int, default=4,
+                        help="Number of healing cycles (default: 4)")
+    parser.add_argument("-h", "--help", action="help")
+    args, _ = parser.parse_known_args(argv)
+
     ts = datetime.now(timezone.utc).isoformat()
-    NUM_CYCLES = 4
+    NUM_CYCLES = args.cycles
 
     # ── Banner ────────────────────────────────────────────────────────────────
     print()
@@ -427,6 +553,14 @@ def main():
         for p in all_proposals[:6]:
             print(f"  {C.DIM}• {p[:90]}{C.RESET}")
 
+    # ── Council deliberation (if --council flag set) ──────────────────────────
+    council_verdicts: List[Dict] = []
+    if args.council and all_proposals:
+        council_verdicts = _run_council_deliberation(
+            all_proposals,
+            api_key=args.api_key,
+        )
+
     # ── Provenance log ────────────────────────────────────────────────────────
     log_dir = ROOT / "logs"
     log_dir.mkdir(exist_ok=True)
@@ -443,12 +577,15 @@ def main():
         "stub_modules": stub_count,
         "module_status": _module_status,
         "proposals": all_proposals,
+        "council_verdicts": council_verdicts,
         "domain_results": [[{k: v for k, v in r.items() if k != "proposals"}
                              for r in cycle] for cycle in all_results],
     }
     log_path.write_text(json.dumps(log_entry, indent=2))
 
     print(f"\n  {C.DIM}Provenance log: {log_path}{C.RESET}")
+    if args.council and council_verdicts:
+        print(f"  {C.DIM}Council decisions logged in provenance{C.RESET}")
     print(f"\n  {'═'*54}")
     print(f"  {bold('WALCHE AGENT DEMO COMPLETE')}")
     print(f"  {'═'*54}\n")
