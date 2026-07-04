@@ -5,355 +5,530 @@
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>WALCHE — Operator Console</title>
 <style>
-/* ── Reset & base ─────────────────────────────────────────────────────────── */
+/* ── Reset & base ──────────────────────────────────────────── */
 *{box-sizing:border-box;margin:0;padding:0}
-html,body{width:100%;height:100%;overflow:hidden;font-family:'Segoe UI',system-ui,sans-serif;background:#060810;color:#e6e8eb;}
+html,body{width:100%;height:100%;overflow:hidden;
+  font-family:'Segoe UI',system-ui,sans-serif;
+  background:#060810;color:#e6e8eb;}
 button{font-family:inherit;cursor:pointer;border:0;background:none;}
 
-/* ── Space background ─────────────────────────────────────────────────────── */
+/* ── Canvases ───────────────────────────────────────────────── */
 #bg{position:fixed;inset:0;z-index:0;}
 #bg canvas{display:block;width:100%;height:100%;}
 
-/* ── Universe SVG ─────────────────────────────────────────────────────────── */
+/* ── Universe SVG ───────────────────────────────────────────── */
 #universe{position:fixed;inset:0;z-index:1;width:100%;height:100%;pointer-events:none;}
-#universe .node-group{pointer-events:all;cursor:pointer;}
+#universe .node-group{pointer-events:all;cursor:pointer;transition:opacity .2s;}
+#universe .node-group:hover{opacity:.9;}
 #universe .node-group:focus{outline:none;}
 
-/* ── Top bar ──────────────────────────────────────────────────────────────── */
+/* ── Top bar ────────────────────────────────────────────────── */
 #topbar{
   position:fixed;top:0;left:0;right:0;z-index:10;
-  display:flex;align-items:center;gap:16px;
-  padding:10px 20px;
-  background:rgba(6,8,16,0.72);
-  backdrop-filter:blur(12px);
-  border-bottom:1px solid rgba(32,164,175,0.2);
+  display:flex;align-items:center;gap:12px;
+  padding:8px 20px;height:52px;
+  background:rgba(6,8,16,0.80);
+  backdrop-filter:blur(14px);
+  border-bottom:1px solid rgba(32,164,175,0.18);
 }
-.brand{display:flex;align-items:center;gap:10px;color:#20a4af;}
+.brand{display:flex;align-items:center;gap:10px;color:#20a4af;flex-shrink:0;}
 .brand-title{font-size:15px;font-weight:700;color:#e6e8eb;letter-spacing:.03em;}
-.brand-sub{font-size:10px;color:#5f6975;text-transform:uppercase;letter-spacing:.1em;}
-.spacer{flex:1;}
+.brand-sub{font-size:9px;color:#5f6975;text-transform:uppercase;letter-spacing:.12em;}
+.tb-spacer{flex:1;}
 .pill{
-  font-size:11px;font-family:monospace;padding:3px 10px;border-radius:999px;
-  background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);
-  color:#9aa5b1;
+  font-size:10px;font-family:monospace;padding:3px 9px;border-radius:999px;
+  background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);
+  color:#9aa5b1;white-space:nowrap;
 }
-.pill.ok {color:#4ea76b;border-color:rgba(78,167,107,0.4);}
-.pill.bad{color:#c64f4f;border-color:rgba(198,79,79,0.4);}
-.pill.warn{color:#d4a017;border-color:rgba(212,160,23,0.4);}
+.pill.ok  {color:#4ea76b;border-color:rgba(78,167,107,.4);}
+.pill.bad {color:#c64f4f;border-color:rgba(198,79,79,.4);}
+.pill.warn{color:#d4a017;border-color:rgba(212,160,23,.4);}
 .ghost{
-  font-size:12px;color:#9aa5b1;border:1px solid rgba(255,255,255,0.1);
+  font-size:11px;color:#9aa5b1;border:1px solid rgba(255,255,255,0.1);
   padding:5px 12px;border-radius:4px;background:rgba(255,255,255,0.04);
-  transition:color .15s,border-color .15s;
-}
-.ghost:hover{color:#e6e8eb;border-color:rgba(255,255,255,0.25);}
-
-/* ── Left timeline ────────────────────────────────────────────────────────── */
-#left-axis{
-  position:fixed;left:20px;top:80px;bottom:100px;z-index:5;
-  display:flex;flex-direction:column;justify-content:space-between;
-  pointer-events:none;
-}
-.axis-label{
-  font-size:10px;color:rgba(95,105,117,0.7);font-family:monospace;
+  transition:color .15s,border-color .15s,background .15s;
   display:flex;align-items:center;gap:6px;
 }
-.axis-dot{width:5px;height:5px;border-radius:50%;background:rgba(32,164,175,0.4);}
-.axis-line{
-  position:fixed;left:23px;top:80px;bottom:100px;width:1px;z-index:4;
-  background:linear-gradient(to bottom,transparent,rgba(32,164,175,0.2) 20%,rgba(32,164,175,0.2) 80%,transparent);
-  pointer-events:none;
+.ghost:hover{color:#e6e8eb;border-color:rgba(255,255,255,0.25);background:rgba(255,255,255,0.07);}
+
+/* Voice button states */
+#btn-voice{position:relative;overflow:visible;}
+#btn-voice.listening{
+  color:#c64f4f!important;border-color:rgba(198,79,79,.5)!important;
+  animation:mic-ring 0.7s ease-in-out infinite;
+}
+#btn-voice.speaking{
+  color:#20a4af!important;border-color:rgba(32,164,175,.5)!important;
+  animation:speak-ring 1s ease-in-out infinite;
+}
+#btn-voice.no-support{opacity:.4;cursor:not-allowed;}
+@keyframes mic-ring{
+  0%,100%{box-shadow:0 0 0 0 rgba(198,79,79,.5);}
+  50%     {box-shadow:0 0 0 7px rgba(198,79,79,0);}
+}
+@keyframes speak-ring{
+  0%,100%{box-shadow:0 0 0 0 rgba(32,164,175,.4);}
+  50%     {box-shadow:0 0 0 7px rgba(32,164,175,0);}
 }
 
-/* ── Bottom stats bar ─────────────────────────────────────────────────────── */
+/* ── Voice strip (feedback bar below topbar) ────────────────── */
+#voice-strip{
+  position:fixed;top:52px;left:0;right:0;z-index:9;
+  height:0;overflow:hidden;
+  background:rgba(6,8,20,0.92);
+  backdrop-filter:blur(10px);
+  border-bottom:1px solid transparent;
+  transition:height .25s ease,border-color .25s;
+  display:flex;align-items:center;gap:12px;padding:0 20px;
+}
+#voice-strip.active{height:34px;border-color:rgba(32,164,175,0.2);}
+#voice-heard{font-size:11px;color:#d4a017;font-family:monospace;}
+#voice-heard::before{content:'Heard: ';}
+#voice-said {font-size:11px;color:#20a4af;margin-left:16px;}
+#voice-said::before{content:'WALCHE: ';}
+.voice-waveform{display:flex;align-items:center;gap:2px;height:16px;}
+.wv-bar{width:2px;background:#c64f4f;border-radius:1px;animation:wv-bounce var(--d,.4s) ease-in-out infinite alternate;}
+@keyframes wv-bounce{from{height:3px}to{height:14px}}
+
+/* ── Left axis ───────────────────────────────────────────────── */
+#left-axis{
+  position:fixed;left:0;top:86px;bottom:90px;z-index:5;
+  width:68px;
+  display:flex;flex-direction:column;justify-content:space-evenly;align-items:flex-end;
+  padding-right:10px;
+  pointer-events:none;
+}
+.axis-line{
+  position:fixed;left:58px;top:86px;bottom:90px;width:1px;z-index:4;
+  background:linear-gradient(to bottom,transparent,rgba(32,164,175,.15) 15%,rgba(32,164,175,.15) 85%,transparent);
+  pointer-events:none;
+}
+.ax-entry{
+  display:flex;align-items:center;justify-content:flex-end;gap:5px;
+  font-family:monospace;font-size:9px;
+}
+.ax-dot{
+  width:6px;height:6px;border-radius:50%;flex-shrink:0;
+  transition:background .5s;
+}
+.ax-score{font-size:9px;}
+.ax-label{color:#5f6975;font-size:8px;}
+
+/* ── Bottom stats bar ────────────────────────────────────────── */
 #bottom-bar{
   position:fixed;bottom:0;left:0;right:0;z-index:10;
-  display:flex;align-items:stretch;gap:0;
-  background:rgba(8,12,20,0.85);
-  backdrop-filter:blur(16px);
-  border-top:1px solid rgba(32,164,175,0.2);
+  display:flex;align-items:stretch;
+  background:rgba(6,10,18,0.90);
+  backdrop-filter:blur(18px);
+  border-top:1px solid rgba(32,164,175,0.18);
   height:80px;
 }
 .stat-cell{
   flex:1;display:flex;flex-direction:column;justify-content:center;
-  padding:0 24px;border-right:1px solid rgba(255,255,255,0.06);
+  padding:0 22px;border-right:1px solid rgba(255,255,255,0.05);
 }
 .stat-cell:last-child{border-right:0;}
-.stat-label{font-size:10px;color:#5f6975;text-transform:uppercase;letter-spacing:.1em;margin-bottom:4px;}
-.stat-value{font-size:22px;font-weight:700;font-family:monospace;line-height:1;display:flex;align-items:baseline;gap:6px;}
-.stat-value .unit{font-size:12px;font-weight:400;color:#9aa5b1;}
-.stat-value .trend{font-size:11px;}
+.stat-label{font-size:9px;color:#5f6975;text-transform:uppercase;letter-spacing:.12em;margin-bottom:5px;}
+.stat-value{font-size:20px;font-weight:700;font-family:monospace;line-height:1;
+  display:flex;align-items:baseline;gap:6px;transition:color .5s;}
+.stat-value .unit{font-size:11px;font-weight:400;color:#9aa5b1;}
+.stat-value .trend{font-size:10px;}
 .verdict-badge{
-  font-size:13px;font-weight:700;font-family:monospace;
-  padding:3px 10px;border-radius:4px;letter-spacing:.05em;
+  font-size:12px;font-weight:700;font-family:monospace;padding:3px 9px;
+  border-radius:4px;letter-spacing:.05em;
 }
 .verdict-badge.go  {background:rgba(78,167,107,.15);color:#4ea76b;border:1px solid rgba(78,167,107,.35);}
-.verdict-badge.cond{background:rgba(212,160,23,.15);color:#d4a017;border:1px solid rgba(212,160,23,.35);}
-.verdict-badge.nogo{background:rgba(198,79,79,.15);color:#c64f4f;border:1px solid rgba(198,79,79,.35);}
-.verdict-badge.none{background:rgba(255,255,255,.05);color:#5f6975;border:1px solid rgba(255,255,255,.08);}
+.verdict-badge.cond{background:rgba(212,160,23,.15); color:#d4a017;border:1px solid rgba(212,160,23,.35);}
+.verdict-badge.nogo{background:rgba(198,79,79,.15);  color:#c64f4f;border:1px solid rgba(198,79,79,.35);}
+.verdict-badge.none{background:rgba(255,255,255,.04);color:#5f6975;border:1px solid rgba(255,255,255,.07);}
 
-/* ── Right detail panel ───────────────────────────────────────────────────── */
+/* ── Detail panel ────────────────────────────────────────────── */
 #detail-panel{
-  position:fixed;right:0;top:50px;bottom:80px;z-index:8;
-  width:320px;
-  background:rgba(8,12,22,0.88);
-  backdrop-filter:blur(16px);
-  border-left:1px solid rgba(32,164,175,0.25);
-  padding:20px 18px;
-  overflow-y:auto;
+  position:fixed;right:0;top:52px;bottom:80px;z-index:8;
+  width:330px;
+  background:rgba(7,10,20,0.92);
+  backdrop-filter:blur(18px);
+  border-left:1px solid rgba(32,164,175,.22);
+  padding:18px 16px;overflow-y:auto;
   transform:translateX(100%);
-  transition:transform .3s cubic-bezier(.4,0,.2,1);
+  transition:transform .32s cubic-bezier(.4,0,.2,1);
 }
 #detail-panel.open{transform:translateX(0);}
 .dp-close{
   position:absolute;top:12px;right:12px;
-  color:#5f6975;font-size:18px;width:28px;height:28px;
+  color:#5f6975;font-size:16px;width:26px;height:26px;
   display:flex;align-items:center;justify-content:center;border-radius:50%;
-  border:1px solid rgba(255,255,255,0.08);
+  border:1px solid rgba(255,255,255,0.07);transition:all .15s;
 }
 .dp-close:hover{color:#e6e8eb;border-color:rgba(255,255,255,0.2);}
-.dp-title{font-size:11px;color:#5f6975;text-transform:uppercase;letter-spacing:.12em;margin-bottom:4px;}
-.dp-name{font-size:18px;font-weight:700;margin-bottom:16px;line-height:1.2;}
-.dp-section{margin-bottom:20px;}
-.dp-section h4{font-size:10px;color:#5f6975;text-transform:uppercase;letter-spacing:.1em;margin-bottom:10px;border-bottom:1px solid rgba(255,255,255,0.06);padding-bottom:6px;}
+.dp-speak{
+  position:absolute;top:12px;right:46px;
+  color:#5f6975;font-size:12px;padding:3px 8px;
+  border-radius:4px;border:1px solid rgba(255,255,255,0.07);transition:all .15s;
+}
+.dp-speak:hover{color:#20a4af;border-color:rgba(32,164,175,.3);}
+.dp-tier{font-size:10px;color:#5f6975;text-transform:uppercase;letter-spacing:.12em;margin-bottom:3px;}
+.dp-name{font-size:17px;font-weight:700;margin-bottom:14px;line-height:1.2;}
+.dp-section{margin-bottom:18px;}
+.dp-section h4{font-size:9px;color:#5f6975;text-transform:uppercase;letter-spacing:.12em;
+  margin-bottom:9px;border-bottom:1px solid rgba(255,255,255,0.06);padding-bottom:5px;}
 .dp-kv{display:grid;grid-template-columns:auto 1fr;gap:5px 14px;font-size:12px;}
 .dp-kv dt{color:#9aa5b1;}
 .dp-kv dd{font-family:monospace;}
-.dp-bar-wrap{height:6px;background:rgba(255,255,255,0.07);border-radius:99px;overflow:hidden;margin-top:3px;}
-.dp-bar-fill{height:100%;border-radius:99px;}
-.dp-analysis{
-  font-size:12px;line-height:1.6;color:#9aa5b1;
-  background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);
-  border-radius:6px;padding:10px 12px;margin-top:8px;
+.dp-bar-wrap{height:5px;background:rgba(255,255,255,0.06);border-radius:99px;overflow:hidden;margin-top:4px;}
+.dp-bar-fill{height:100%;border-radius:99px;transition:width .8s cubic-bezier(.4,0,.2,1);}
+.dp-note{
+  font-size:11px;line-height:1.6;color:#9aa5b1;
+  background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);
+  border-radius:5px;padding:9px 11px;margin-top:8px;
 }
-.dp-analysis strong{color:#d4a017;font-size:11px;display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.06em;}
+.dp-note strong{font-size:10px;display:block;margin-bottom:3px;text-transform:uppercase;letter-spacing:.06em;}
 .dp-tag{
   display:inline-block;font-size:10px;font-family:monospace;
-  padding:2px 7px;border-radius:99px;margin:2px 2px 0 0;
-  background:rgba(32,164,175,0.1);border:1px solid rgba(32,164,175,0.25);color:#20a4af;
+  padding:2px 6px;border-radius:99px;margin:2px 2px 0 0;
+  background:rgba(32,164,175,.1);border:1px solid rgba(32,164,175,.25);color:#20a4af;
 }
-.dp-tag.stub{background:rgba(212,160,23,0.1);border-color:rgba(212,160,23,.25);color:#d4a017;}
-.dp-tag.fail{background:rgba(198,79,79,0.1);border-color:rgba(198,79,79,.25);color:#c64f4f;}
+.dp-decision{
+  margin-bottom:7px;padding:8px 10px;
+  background:rgba(255,255,255,0.03);border-radius:4px;
+  border-left:3px solid transparent;
+}
+.cycle-spark{display:flex;gap:3px;align-items:flex-end;height:20px;margin-top:8px;}
+.cs-bar{width:8px;background:#9aa5b1;border-radius:1px 1px 0 0;transition:background .5s;}
 
-/* ── Scrollbar ────────────────────────────────────────────────────────────── */
-*::-webkit-scrollbar{width:6px;height:6px;}
+/* ── Scrollbar ───────────────────────────────────────────────── */
+*::-webkit-scrollbar{width:4px;}
 *::-webkit-scrollbar-track{background:transparent;}
-*::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.08);border-radius:3px;}
+*::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.07);border-radius:2px;}
 
-/* ── SVG glow filters / node styles ─────────────────────────────────────────*/
-.node-core circle.orb{fill:url(#grad-core);filter:url(#glow-gold);}
-.node-domain circle.orb{filter:url(#glow-domain);}
-.node-module circle.orb{filter:url(#glow-module);}
-.node-label{fill:#e6e8eb;font-family:'Segoe UI',system-ui,sans-serif;font-size:11px;text-anchor:middle;pointer-events:none;}
-.node-sub{fill:#9aa5b1;font-family:'Segoe UI',system-ui,sans-serif;font-size:9px;text-anchor:middle;pointer-events:none;}
+/* ── SVG node styles ─────────────────────────────────────────── */
+.node-label{fill:#e6e8eb;font-family:'Segoe UI',system-ui,sans-serif;
+  font-size:11px;text-anchor:middle;pointer-events:none;}
+.node-sub  {fill:#9aa5b1;font-family:'Segoe UI',system-ui,sans-serif;
+  font-size:9px;text-anchor:middle;pointer-events:none;}
 .node-score{font-family:monospace;font-size:10px;text-anchor:middle;pointer-events:none;}
-.beam{stroke-width:1.2;fill:none;opacity:.55;}
-.beam-module{stroke-width:.7;fill:none;opacity:.35;}
+.beam-base {fill:none;opacity:.4;}
+.beam-flow {fill:none;opacity:.65;}
+.beam-mod  {fill:none;opacity:.3;}
 
-@keyframes pulse-core{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.85;transform:scale(1.04)}}
-@keyframes pulse-domain{0%,100%{opacity:.9}50%{opacity:1}}
-@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+/* ── Keyframe animations ─────────────────────────────────────── */
+@keyframes pulse-core{
+  0%,100%{transform:scale(1);opacity:1;}
+  50%    {transform:scale(1.045);opacity:.88;}
+}
+@keyframes ring-expand{
+  0%  {r:72; stroke-opacity:.35;}
+  100%{r:115;stroke-opacity:0;}
+}
+@keyframes ring-expand2{
+  0%  {r:80; stroke-opacity:.2;}
+  100%{r:120;stroke-opacity:0;}
+}
+@keyframes scanner-spin{
+  from{transform:rotate(0deg);}
+  to  {transform:rotate(360deg);}
+}
+@keyframes domain-breathe{
+  0%,100%{opacity:.95;}
+  50%    {opacity:1;}
+}
+@keyframes float-vll{
+  0%,100%{transform:translateY(0);}
+  50%    {transform:translateY(-5px);}
+}
+@keyframes float-council{
+  0%,100%{transform:translateY(0);}
+  50%    {transform:translateY(4px);}
+}
 #core-group{animation:pulse-core 4s ease-in-out infinite;transform-origin:700px 400px;}
+#node-vll  {animation:float-vll    3.5s ease-in-out infinite;}
+#node-council{animation:float-council 4s ease-in-out infinite;}
+.node-domain .orb{animation:domain-breathe 5s ease-in-out infinite;}
 </style>
 </head>
 <body>
 
-<!-- ── Particle canvas ───────────────────────────────────────────────────── -->
+<!-- ── Particle starfield canvas ─────────────────────────────── -->
 <div id="bg"><canvas id="stars"></canvas></div>
 
-<!-- ── Universe graph ────────────────────────────────────────────────────── -->
+<!-- ── Universe SVG ──────────────────────────────────────────── -->
 <svg id="universe" viewBox="0 0 1400 840" preserveAspectRatio="xMidYMid slice">
-  <defs>
-    <!-- Core orb gradient: gold/amber -->
-    <radialGradient id="grad-core" cx="40%" cy="35%" r="65%">
-      <stop offset="0%" stop-color="#ffe580"/>
-      <stop offset="45%" stop-color="#d4a017"/>
-      <stop offset="100%" stop-color="#7a4d00"/>
-    </radialGradient>
-    <!-- Glow filters -->
-    <filter id="glow-gold" x="-60%" y="-60%" width="220%" height="220%">
-      <feGaussianBlur in="SourceGraphic" stdDeviation="14" result="blur"/>
-      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-    </filter>
-    <filter id="glow-domain" x="-80%" y="-80%" width="260%" height="260%">
-      <feGaussianBlur in="SourceGraphic" stdDeviation="8" result="blur"/>
-      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-    </filter>
-    <filter id="glow-module" x="-100%" y="-100%" width="300%" height="300%">
-      <feGaussianBlur in="SourceGraphic" stdDeviation="4" result="blur"/>
-      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-    </filter>
-    <!-- Beam gradients (core → domain) -->
-    <linearGradient id="beam-corpus"   x1="0" y1="0" x2="1" y2="0" gradientUnits="userSpaceOnUse" x1="700" y1="400" x2="300" y2="160"><stop offset="0%" stop-color="#d4a017"/><stop offset="100%" stop-color="#4ea76b"/></linearGradient>
-    <linearGradient id="beam-healing"  x1="700" y1="400" x2="1000" y2="170" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#d4a017"/><stop offset="100%" stop-color="#4ea76b"/></linearGradient>
-    <linearGradient id="beam-loop"     x1="700" y1="400" x2="1060" y2="600" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#d4a017"/><stop offset="100%" stop-color="#20a4af"/></linearGradient>
-    <linearGradient id="beam-meta"     x1="700" y1="400" x2="300" y2="620" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#d4a017"/><stop offset="100%" stop-color="#20a4af"/></linearGradient>
-    <linearGradient id="beam-vll"      x1="700" y1="400" x2="700" y2="130" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#d4a017"/><stop offset="100%" stop-color="#6b7fff"/></linearGradient>
-    <linearGradient id="beam-council"  x1="700" y1="400" x2="700" y2="700" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#d4a017"/><stop offset="100%" stop-color="#a076d4"/></linearGradient>
-  </defs>
+<defs>
+  <!-- Core orb gradient -->
+  <radialGradient id="grad-core" cx="38%" cy="32%" r="68%">
+    <stop offset="0%"   stop-color="#fff5a0"/>
+    <stop offset="40%"  stop-color="#d4a017"/>
+    <stop offset="100%" stop-color="#6a3800"/>
+  </radialGradient>
+  <!-- Glow filters -->
+  <filter id="glow-gold" x="-65%" y="-65%" width="230%" height="230%">
+    <feGaussianBlur in="SourceGraphic" stdDeviation="16" result="b"/>
+    <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+  </filter>
+  <filter id="glow-domain" x="-90%" y="-90%" width="280%" height="280%">
+    <feGaussianBlur in="SourceGraphic" stdDeviation="9"  result="b"/>
+    <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+  </filter>
+  <filter id="glow-module" x="-110%" y="-110%" width="320%" height="320%">
+    <feGaussianBlur in="SourceGraphic" stdDeviation="4.5" result="b"/>
+    <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+  </filter>
+  <!-- Beam base gradients (FIXED: no duplicate attributes) -->
+  <linearGradient id="bg-corpus"  gradientUnits="userSpaceOnUse" x1="700" y1="400" x2="300"  y2="160">
+    <stop offset="0%"   stop-color="#d4a017" stop-opacity=".7"/>
+    <stop offset="100%" stop-color="#4ea76b" stop-opacity=".7"/>
+  </linearGradient>
+  <linearGradient id="bg-healing" gradientUnits="userSpaceOnUse" x1="700" y1="400" x2="1000" y2="170">
+    <stop offset="0%"   stop-color="#d4a017" stop-opacity=".7"/>
+    <stop offset="100%" stop-color="#4ea76b" stop-opacity=".7"/>
+  </linearGradient>
+  <linearGradient id="bg-loop"    gradientUnits="userSpaceOnUse" x1="700" y1="400" x2="1060" y2="600">
+    <stop offset="0%"   stop-color="#d4a017" stop-opacity=".7"/>
+    <stop offset="100%" stop-color="#20a4af" stop-opacity=".7"/>
+  </linearGradient>
+  <linearGradient id="bg-meta"    gradientUnits="userSpaceOnUse" x1="700" y1="400" x2="300"  y2="620">
+    <stop offset="0%"   stop-color="#d4a017" stop-opacity=".7"/>
+    <stop offset="100%" stop-color="#20a4af" stop-opacity=".7"/>
+  </linearGradient>
+  <linearGradient id="bg-vll"     gradientUnits="userSpaceOnUse" x1="700" y1="400" x2="700"  y2="130">
+    <stop offset="0%"   stop-color="#d4a017" stop-opacity=".7"/>
+    <stop offset="100%" stop-color="#6b7fff" stop-opacity=".7"/>
+  </linearGradient>
+  <linearGradient id="bg-council" gradientUnits="userSpaceOnUse" x1="700" y1="400" x2="700"  y2="710">
+    <stop offset="0%"   stop-color="#d4a017" stop-opacity=".7"/>
+    <stop offset="100%" stop-color="#a076d4" stop-opacity=".7"/>
+  </linearGradient>
+</defs>
 
-  <!-- ── Beam lines (core → domains) ───────────────────────── -->
-  <line class="beam" id="beam-l-corpus"  x1="700" y1="400" x2="300" y2="160" stroke="url(#beam-corpus)"/>
-  <line class="beam" id="beam-l-healing" x1="700" y1="400" x2="1000" y2="170" stroke="url(#beam-healing)"/>
-  <line class="beam" id="beam-l-loop"    x1="700" y1="400" x2="1060" y2="600" stroke="url(#beam-loop)"/>
-  <line class="beam" id="beam-l-meta"    x1="700" y1="400" x2="300" y2="620" stroke="url(#beam-meta)"/>
-  <line class="beam" id="beam-l-vll"     x1="700" y1="400" x2="700" y2="130" stroke="url(#beam-vll)"/>
-  <line class="beam" id="beam-l-council" x1="700" y1="400" x2="700" y2="710" stroke="url(#beam-council)"/>
+<!-- ── Module beams (domain → module) ──────────────────────── -->
+<line class="beam-mod" x1="300" y1="160" x2="120" y2="70"   stroke="#4ea76b" stroke-width=".8"/>
+<line class="beam-mod" x1="300" y1="160" x2="110" y2="220"  stroke="#4ea76b" stroke-width=".8"/>
+<line class="beam-mod" x1="300" y1="160" x2="200" y2="310"  stroke="#4ea76b" stroke-width=".8"/>
+<line class="beam-mod" x1="1000" y1="170" x2="1130" y2="70"  stroke="#4ea76b" stroke-width=".8"/>
+<line class="beam-mod" x1="1000" y1="170" x2="1190" y2="200" stroke="#4ea76b" stroke-width=".8"/>
+<line class="beam-mod" x1="1060" y1="600" x2="1205" y2="515" stroke="#20a4af" stroke-width=".8"/>
+<line class="beam-mod" x1="1060" y1="600" x2="1200" y2="670" stroke="#20a4af" stroke-width=".8"/>
+<line class="beam-mod" x1="300"  y1="620" x2="128"  y2="538" stroke="#20a4af" stroke-width=".8"/>
+<line class="beam-mod" x1="300"  y1="620" x2="138"  y2="700" stroke="#20a4af" stroke-width=".8"/>
 
-  <!-- ── Module beams (domain → module) ────────────────────── -->
-  <!-- corpus children -->
-  <line class="beam-module" x1="300" y1="160" x2="120" y2="70"  stroke="#4ea76b"/>
-  <line class="beam-module" x1="300" y1="160" x2="110" y2="220" stroke="#4ea76b"/>
-  <line class="beam-module" x1="300" y1="160" x2="200" y2="300" stroke="#4ea76b"/>
-  <!-- healing children -->
-  <line class="beam-module" x1="1000" y1="170" x2="1130" y2="70"  stroke="#4ea76b"/>
-  <line class="beam-module" x1="1000" y1="170" x2="1180" y2="200" stroke="#4ea76b"/>
-  <!-- loop children -->
-  <line class="beam-module" x1="1060" y1="600" x2="1200" y2="520" stroke="#20a4af"/>
-  <line class="beam-module" x1="1060" y1="600" x2="1200" y2="670" stroke="#20a4af"/>
-  <!-- meta children -->
-  <line class="beam-module" x1="300" y1="620" x2="130" y2="540" stroke="#20a4af"/>
-  <line class="beam-module" x1="300" y1="620" x2="140" y2="700" stroke="#20a4af"/>
+<!-- ── Beam base lines (gradient, always visible) ──────────── -->
+<line id="beam-base-corpus"  class="beam-base" x1="700" y1="400" x2="300"  y2="160" stroke="url(#bg-corpus)"  stroke-width="1.5"/>
+<line id="beam-base-healing" class="beam-base" x1="700" y1="400" x2="1000" y2="170" stroke="url(#bg-healing)" stroke-width="1.5"/>
+<line id="beam-base-loop"    class="beam-base" x1="700" y1="400" x2="1060" y2="600" stroke="url(#bg-loop)"    stroke-width="1.5"/>
+<line id="beam-base-meta"    class="beam-base" x1="700" y1="400" x2="300"  y2="620" stroke="url(#bg-meta)"    stroke-width="1.5"/>
+<line id="beam-base-vll"     class="beam-base" x1="700" y1="400" x2="700"  y2="130" stroke="url(#bg-vll)"     stroke-width="1.5"/>
+<line id="beam-base-council" class="beam-base" x1="700" y1="400" x2="700"  y2="710" stroke="url(#bg-council)" stroke-width="1.5"/>
 
-  <!-- ── WALCHE CORE (MetaEngine / Bertha) ─────────────────── -->
-  <g id="core-group" class="node-group node-core" data-node="core" tabindex="0">
-    <!-- Outer ring pulse -->
-    <circle cx="700" cy="400" r="90" fill="none" stroke="rgba(212,160,23,0.12)" stroke-width="40"/>
-    <circle cx="700" cy="400" r="72" fill="none" stroke="rgba(212,160,23,0.18)" stroke-width="12"/>
-    <!-- Main orb -->
-    <circle class="orb" cx="700" cy="400" r="58"/>
-    <!-- Ring texture (simplified corona) -->
-    <circle cx="700" cy="400" r="64" fill="none" stroke="rgba(255,229,128,0.25)" stroke-width="3" stroke-dasharray="4 6"/>
-    <!-- Label -->
-    <text class="node-label" x="700" y="478" font-size="13" font-weight="700" fill="#e6e8eb">WALCHE CORE</text>
-    <text class="node-sub" x="700" y="493" fill="#9aa5b1">MetaEngine · Bertha</text>
-    <text id="core-score" class="node-score" x="700" y="400" dy="4" fill="#ffe580" font-size="13" font-weight="700">—</text>
-  </g>
+<!-- ── Beam flow lines (animated dashes traveling core→domain) -->
+<line id="beam-flow-corpus"  class="beam-flow" x1="700" y1="400" x2="300"  y2="160" stroke="#4ea76b" stroke-width="1.3" stroke-dasharray="5 13">
+  <animate attributeName="stroke-dashoffset" from="18" to="0" dur="2.0s" repeatCount="indefinite"/>
+</line>
+<line id="beam-flow-healing" class="beam-flow" x1="700" y1="400" x2="1000" y2="170" stroke="#4ea76b" stroke-width="1.3" stroke-dasharray="5 13">
+  <animate attributeName="stroke-dashoffset" from="18" to="0" dur="2.4s" repeatCount="indefinite"/>
+</line>
+<line id="beam-flow-loop"    class="beam-flow" x1="700" y1="400" x2="1060" y2="600" stroke="#20a4af" stroke-width="1.3" stroke-dasharray="5 13">
+  <animate attributeName="stroke-dashoffset" from="18" to="0" dur="1.9s" repeatCount="indefinite"/>
+</line>
+<line id="beam-flow-meta"    class="beam-flow" x1="700" y1="400" x2="300"  y2="620" stroke="#20a4af" stroke-width="1.3" stroke-dasharray="5 13">
+  <animate attributeName="stroke-dashoffset" from="18" to="0" dur="2.2s" repeatCount="indefinite"/>
+</line>
+<line id="beam-flow-vll"     class="beam-flow" x1="700" y1="400" x2="700"  y2="130" stroke="#6b7fff" stroke-width="1.3" stroke-dasharray="5 13">
+  <animate attributeName="stroke-dashoffset" from="18" to="0" dur="1.7s" repeatCount="indefinite"/>
+</line>
+<line id="beam-flow-council" class="beam-flow" x1="700" y1="400" x2="700"  y2="710" stroke="#a076d4" stroke-width="1.3" stroke-dasharray="5 13">
+  <animate attributeName="stroke-dashoffset" from="18" to="0" dur="2.6s" repeatCount="indefinite"/>
+</line>
 
-  <!-- ── corpus.integrity domain ───────────────────────────── -->
-  <g class="node-group node-domain" data-node="corpus" tabindex="0">
-    <circle class="orb" id="orb-corpus"  cx="300" cy="160" r="36" fill="#4ea76b"/>
-    <circle cx="300" cy="160" r="44" fill="none" stroke="rgba(78,167,107,0.2)" stroke-width="8"/>
-    <text class="node-label" x="300" y="212" fill="#e6e8eb">corpus.integrity</text>
-    <text id="score-corpus" class="node-score" x="300" y="162" dy="3" fill="#fff"/>
-    <!-- GAPS badge -->
-    <rect id="gap-corpus" x="252" y="174" width="96" height="16" rx="8" fill="rgba(0,0,0,0.5)"/>
-    <text id="gaplabel-corpus" x="300" y="186" text-anchor="middle" font-size="9" font-family="monospace" fill="#9aa5b1">GAPS —</text>
-  </g>
+<!-- ── Beam travel particles (JS-managed) ───────────────────── -->
+<g id="particles"></g>
 
-  <!-- ── healing.engine domain ─────────────────────────────── -->
-  <g class="node-group node-domain" data-node="healing" tabindex="0">
-    <circle class="orb" id="orb-healing" cx="1000" cy="170" r="30" fill="#4ea76b"/>
-    <circle cx="1000" cy="170" r="38" fill="none" stroke="rgba(78,167,107,0.2)" stroke-width="8"/>
-    <text class="node-label" x="1000" y="216" fill="#e6e8eb">healing.engine</text>
-    <text id="score-healing" class="node-score" x="1000" y="172" dy="3" fill="#fff"/>
+<!-- ── WALCHE CORE ───────────────────────────────────────────── -->
+<g id="core-group" class="node-group node-core" data-node="core" tabindex="0">
+  <!-- Expanding pulse rings -->
+  <circle cx="700" cy="400" r="72" fill="none" stroke="rgba(212,160,23,.3)" stroke-width="1">
+    <animate attributeName="r"              from="72"  to="120" dur="3s" begin="0s"   repeatCount="indefinite"/>
+    <animate attributeName="stroke-opacity" from=".3"  to="0"   dur="3s" begin="0s"   repeatCount="indefinite"/>
+  </circle>
+  <circle cx="700" cy="400" r="72" fill="none" stroke="rgba(212,160,23,.2)" stroke-width="1">
+    <animate attributeName="r"              from="72"  to="120" dur="3s" begin="1.5s" repeatCount="indefinite"/>
+    <animate attributeName="stroke-opacity" from=".25" to="0"   dur="3s" begin="1.5s" repeatCount="indefinite"/>
+  </circle>
+  <!-- Orbit ring -->
+  <circle cx="700" cy="400" r="74" fill="none" stroke="rgba(255,229,128,.12)" stroke-width="28"/>
+  <circle cx="700" cy="400" r="67" fill="none" stroke="rgba(212,160,23,.2)"  stroke-width="10"/>
+  <!-- Main orb -->
+  <circle class="orb" cx="700" cy="400" r="58" fill="url(#grad-core)" filter="url(#glow-gold)"/>
+  <!-- Corona dashes -->
+  <circle cx="700" cy="400" r="65" fill="none" stroke="rgba(255,229,128,.22)" stroke-width="2.5" stroke-dasharray="3 7"/>
+  <!-- Scanner arc -->
+  <g id="scanner-g" style="transform-origin:700px 400px;animation:scanner-spin 10s linear infinite;">
+    <path d="M700,315 A85,85 0 0,1 785,400" fill="none" stroke="rgba(255,229,128,.45)" stroke-width="1.8" stroke-linecap="round"/>
+    <circle cx="700" cy="315" r="3" fill="rgba(255,229,128,.7)"/>
   </g>
+  <!-- Score text -->
+  <text id="core-score" class="node-score" x="700" y="404" fill="#ffe580" font-size="14" font-weight="700">—</text>
+  <!-- Label -->
+  <text class="node-label" x="700" y="480" font-size="13" font-weight="700">WALCHE CORE</text>
+  <text class="node-sub"   x="700" y="495">MetaEngine · Bertha</text>
+</g>
 
-  <!-- ── loop.registry domain ──────────────────────────────── -->
-  <g class="node-group node-domain" data-node="loop" tabindex="0">
-    <circle class="orb" id="orb-loop" cx="1060" cy="600" r="30" fill="#20a4af"/>
-    <circle cx="1060" cy="600" r="38" fill="none" stroke="rgba(32,164,175,0.2)" stroke-width="8"/>
-    <text class="node-label" x="1060" y="646" fill="#e6e8eb">loop.registry</text>
-    <text id="score-loop" class="node-score" x="1060" y="602" dy="3" fill="#fff"/>
-  </g>
+<!-- ── corpus.integrity ──────────────────────────────────────── -->
+<g class="node-group node-domain" data-node="corpus" tabindex="0">
+  <circle cx="300" cy="160" r="44" fill="none" stroke="rgba(78,167,107,.18)" stroke-width="8"/>
+  <circle class="orb" id="orb-corpus" cx="300" cy="160" r="36" fill="#4ea76b" filter="url(#glow-domain)"/>
+  <text class="node-label" x="300" y="214">corpus.integrity</text>
+  <text id="score-corpus" class="node-score" x="300" y="162" dy="4" fill="#fff">—</text>
+  <rect id="gap-bg" x="250" y="175" width="100" height="16" rx="8" fill="rgba(0,0,0,.55)"/>
+  <text id="gap-label" x="300" y="187" text-anchor="middle" font-size="9" font-family="monospace" fill="#9aa5b1">—</text>
+</g>
 
-  <!-- ── meta.engine domain ────────────────────────────────── -->
-  <g class="node-group node-domain" data-node="meta" tabindex="0">
-    <circle class="orb" id="orb-meta" cx="300" cy="620" r="30" fill="#20a4af"/>
-    <circle cx="300" cy="620" r="38" fill="none" stroke="rgba(32,164,175,0.2)" stroke-width="8"/>
-    <text class="node-label" x="300" y="666" fill="#e6e8eb">meta.engine</text>
-    <text id="score-meta" class="node-score" x="300" y="622" dy="3" fill="#fff"/>
-  </g>
+<!-- ── healing.engine ────────────────────────────────────────── -->
+<g class="node-group node-domain" data-node="healing" tabindex="0">
+  <circle cx="1000" cy="170" r="38" fill="none" stroke="rgba(78,167,107,.18)" stroke-width="8"/>
+  <circle class="orb" id="orb-healing" cx="1000" cy="170" r="30" fill="#4ea76b" filter="url(#glow-domain)"/>
+  <text class="node-label" x="1000" y="218">healing.engine</text>
+  <text id="score-healing" class="node-score" x="1000" y="172" dy="4" fill="#fff">—</text>
+</g>
 
-  <!-- ── VLL node ───────────────────────────────────────────── -->
-  <g class="node-group node-domain" data-node="vll" tabindex="0">
-    <circle class="orb" cx="700" cy="130" r="26" fill="#6b7fff"/>
-    <circle cx="700" cy="130" r="34" fill="none" stroke="rgba(107,127,255,0.2)" stroke-width="8"/>
-    <text class="node-label" x="700" y="172" fill="#e6e8eb">VLL</text>
-    <text class="node-sub" x="700" y="184" fill="#9aa5b1">Verification Learning</text>
-    <text id="score-vll" class="node-score" x="700" y="132" dy="3" fill="#c8caff"/>
-  </g>
+<!-- ── loop.registry ─────────────────────────────────────────── -->
+<g class="node-group node-domain" data-node="loop" tabindex="0">
+  <circle cx="1060" cy="600" r="38" fill="none" stroke="rgba(32,164,175,.18)" stroke-width="8"/>
+  <circle class="orb" id="orb-loop" cx="1060" cy="600" r="30" fill="#20a4af" filter="url(#glow-domain)"/>
+  <text class="node-label" x="1060" y="648">loop.registry</text>
+  <text id="score-loop" class="node-score" x="1060" y="602" dy="4" fill="#fff">—</text>
+</g>
 
-  <!-- ── Grand Council node ─────────────────────────────────── -->
-  <g class="node-group node-domain" data-node="council" tabindex="0">
-    <circle class="orb" cx="700" cy="710" r="26" fill="#a076d4"/>
-    <circle cx="700" cy="710" r="34" fill="none" stroke="rgba(160,118,212,0.2)" stroke-width="8"/>
-    <text class="node-label" x="700" y="752" fill="#e6e8eb">Grand Council</text>
-    <text class="node-sub" x="700" y="764" fill="#9aa5b1">47 judges</text>
-    <text id="score-council" class="node-score" x="700" y="712" dy="3" fill="#d4b8ff"/>
-  </g>
+<!-- ── meta.engine ───────────────────────────────────────────── -->
+<g class="node-group node-domain" data-node="meta" tabindex="0">
+  <circle cx="300" cy="620" r="38" fill="none" stroke="rgba(32,164,175,.18)" stroke-width="8"/>
+  <circle class="orb" id="orb-meta" cx="300" cy="620" r="30" fill="#20a4af" filter="url(#glow-domain)"/>
+  <text class="node-label" x="300" y="668">meta.engine</text>
+  <text id="score-meta" class="node-score" x="300" y="622" dy="4" fill="#fff">—</text>
+</g>
 
-  <!-- ── Module leaf nodes ─────────────────────────────────── -->
-  <!-- corpus cluster -->
-  <g class="node-group node-module" data-node="mod-rubric" tabindex="0">
-    <circle id="orb-rubric"   cx="120" cy="70"  r="14" fill="#20a4af" class="orb"/>
-    <text class="node-label"  x="120" y="92"  fill="#9aa5b1" font-size="9">RubricScorer</text>
-  </g>
-  <g class="node-group node-module" data-node="mod-preingest" tabindex="0">
-    <circle id="orb-preingest" cx="110" cy="220" r="14" fill="#20a4af" class="orb"/>
-    <text class="node-label"  x="110" y="242" fill="#9aa5b1" font-size="9">PreIngestGate</text>
-  </g>
-  <g class="node-group node-module" data-node="mod-config" tabindex="0">
-    <circle id="orb-config"   cx="200" cy="310" r="12" fill="#20a4af" class="orb"/>
-    <text class="node-label"  x="200" y="330" fill="#9aa5b1" font-size="9">WalcheConfig</text>
-  </g>
-  <!-- healing cluster -->
-  <g class="node-group node-module" data-node="mod-heal" tabindex="0">
-    <circle id="orb-heal"   cx="1130" cy="70"  r="14" fill="#20a4af" class="orb"/>
-    <text class="node-label" x="1130" y="92"  fill="#9aa5b1" font-size="9">HealingEngine</text>
-  </g>
-  <g class="node-group node-module" data-node="mod-pain" tabindex="0">
-    <circle id="orb-pain"   cx="1180" cy="200" r="14" fill="#20a4af" class="orb"/>
-    <text class="node-label" x="1180" y="222" fill="#9aa5b1" font-size="9">PAIN-FMEA</text>
-  </g>
-  <!-- loop cluster -->
-  <g class="node-group node-module" data-node="mod-guard" tabindex="0">
-    <circle id="orb-guard"  cx="1200" cy="520" r="13" fill="#20a4af" class="orb"/>
-    <text class="node-label" x="1200" y="542" fill="#9aa5b1" font-size="9">GuardRail</text>
-  </g>
-  <g class="node-group node-module" data-node="mod-prov" tabindex="0">
-    <circle id="orb-prov"   cx="1200" cy="670" r="12" fill="#20a4af" class="orb"/>
-    <text class="node-label" x="1200" y="690" fill="#9aa5b1" font-size="9">Provenance</text>
-  </g>
-  <!-- meta cluster -->
-  <g class="node-group node-module" data-node="mod-cross" tabindex="0">
-    <circle id="orb-cross"  cx="130" cy="540" r="13" fill="#20a4af" class="orb"/>
-    <text class="node-label" x="130" y="562" fill="#9aa5b1" font-size="9">CrossEnsemble</text>
-  </g>
-  <g class="node-group node-module" data-node="mod-c12" tabindex="0">
-    <circle id="orb-c12"    cx="140" cy="700" r="12" fill="#20a4af" class="orb"/>
-    <text class="node-label" x="140" y="720" fill="#9aa5b1" font-size="9">C12 Gate</text>
-  </g>
+<!-- ── VLL ───────────────────────────────────────────────────── -->
+<g id="node-vll" class="node-group node-domain" data-node="vll" tabindex="0">
+  <circle cx="700" cy="130" r="34" fill="none" stroke="rgba(107,127,255,.18)" stroke-width="8"/>
+  <circle class="orb" id="orb-vll" cx="700" cy="130" r="26" fill="#6b7fff" filter="url(#glow-domain)"/>
+  <text class="node-label" x="700" y="173">VLL</text>
+  <text class="node-sub"   x="700" y="185">Verification Learning</text>
+  <text id="score-vll" class="node-score" x="700" y="132" dy="4" fill="#c8caff">—</text>
+</g>
+
+<!-- ── Grand Council ─────────────────────────────────────────── -->
+<g id="node-council" class="node-group node-domain" data-node="council" tabindex="0">
+  <circle cx="700" cy="710" r="34" fill="none" stroke="rgba(160,118,212,.18)" stroke-width="8"/>
+  <circle class="orb" id="orb-council" cx="700" cy="710" r="26" fill="#a076d4" filter="url(#glow-domain)"/>
+  <text class="node-label" x="700" y="753">Grand Council</text>
+  <text class="node-sub"   x="700" y="765">47 judges</text>
+  <text id="score-council" class="node-score" x="700" y="712" dy="4" fill="#d4b8ff">—</text>
+</g>
+
+<!-- ── Module leaf nodes ─────────────────────────────────────── -->
+<!-- corpus cluster: RubricScorer, PreIngestGate, WalcheConfig -->
+<g class="node-group node-module" data-node="mod-rubric" tabindex="0">
+  <circle id="orb-rubric"    cx="120" cy="70"  r="14" fill="#20a4af" filter="url(#glow-module)"/>
+  <text class="node-label"   x="120"  y="92"   fill="#9aa5b1" font-size="9">RubricScorer</text>
+</g>
+<g class="node-group node-module" data-node="mod-preingest" tabindex="0">
+  <circle id="orb-preingest" cx="110" cy="225" r="14" fill="#20a4af" filter="url(#glow-module)"/>
+  <text class="node-label"   x="110"  y="247"  fill="#9aa5b1" font-size="9">PreIngestGate</text>
+</g>
+<g class="node-group node-module" data-node="mod-config" tabindex="0">
+  <circle id="orb-config"    cx="200" cy="315" r="12" fill="#20a4af" filter="url(#glow-module)"/>
+  <text class="node-label"   x="200"  y="334"  fill="#9aa5b1" font-size="9">WalcheConfig</text>
+</g>
+<!-- healing cluster: HealingEngine, PAIN-FMEA -->
+<g class="node-group node-module" data-node="mod-heal" tabindex="0">
+  <circle id="orb-heal"  cx="1135" cy="70"  r="14" fill="#20a4af" filter="url(#glow-module)"/>
+  <text class="node-label" x="1135"  y="92"   fill="#9aa5b1" font-size="9">HealingEngine</text>
+</g>
+<g class="node-group node-module" data-node="mod-pain" tabindex="0">
+  <circle id="orb-pain"  cx="1190" cy="205" r="14" fill="#20a4af" filter="url(#glow-module)"/>
+  <text class="node-label" x="1190"  y="227"  fill="#9aa5b1" font-size="9">PAIN-FMEA</text>
+</g>
+<!-- loop cluster: GuardRail, Provenance -->
+<g class="node-group node-module" data-node="mod-guard" tabindex="0">
+  <circle id="orb-guard" cx="1205" cy="515" r="13" fill="#20a4af" filter="url(#glow-module)"/>
+  <text class="node-label" x="1205"  y="536"  fill="#9aa5b1" font-size="9">GuardRail</text>
+</g>
+<g class="node-group node-module" data-node="mod-prov" tabindex="0">
+  <circle id="orb-prov"  cx="1200" cy="670" r="12" fill="#20a4af" filter="url(#glow-module)"/>
+  <text class="node-label" x="1200"  y="689"  fill="#9aa5b1" font-size="9">Provenance</text>
+</g>
+<!-- meta cluster: CrossEnsemble, C12 Gate -->
+<g class="node-group node-module" data-node="mod-cross" tabindex="0">
+  <circle id="orb-cross" cx="128"  cy="538" r="13" fill="#20a4af" filter="url(#glow-module)"/>
+  <text class="node-label" x="128"   y="558"  fill="#9aa5b1" font-size="9">CrossEnsemble</text>
+</g>
+<g class="node-group node-module" data-node="mod-c12" tabindex="0">
+  <circle id="orb-c12"   cx="138"  cy="700" r="12" fill="#20a4af" filter="url(#glow-module)"/>
+  <text class="node-label" x="138"   y="719"  fill="#9aa5b1" font-size="9">C12 Gate</text>
+</g>
 </svg>
 
-<!-- ── Top bar ────────────────────────────────────────────── -->
+<!-- ── Top bar ────────────────────────────────────────────────── -->
 <div id="topbar">
   <div class="brand">
-    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M3 9l4 9 5-7 5 7 4-9"/>
-      <rect x="1" y="1" width="22" height="22" rx="3"/>
+    <!-- WALCHE sigil (SVG inline) -->
+    <svg viewBox="0 0 22 22" width="20" height="20" fill="none" stroke="#20a4af" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <polygon points="11,2 20,7 20,15 11,20 2,15 2,7"/>
+      <line x1="11" y1="2"  x2="11" y2="20"/>
+      <line x1="2"  y1="7"  x2="20" y2="15"/>
+      <line x1="2"  y1="15" x2="20" y2="7"/>
     </svg>
     <div>
       <div class="brand-title">WALCHE</div>
-      <div class="brand-sub">Forensic Looping Corpus Brain · EPM-STARK</div>
+      <div class="brand-sub">Forensic Looping Corpus Brain</div>
     </div>
   </div>
-  <div class="spacer"></div>
+  <div class="tb-spacer"></div>
   <span class="pill" id="api-pill">connecting…</span>
   <span class="pill" id="refresh-pill"></span>
-  <button class="ghost" id="btn-refresh">↺ Refresh</button>
+  <button class="ghost" id="btn-refresh" title="Manual refresh">↺ Refresh</button>
+  <button class="ghost" id="btn-voice"   title="Voice command (or press V)">
+    <!-- Mic icon -->
+    <svg id="mic-icon" viewBox="0 0 16 16" width="13" height="13" fill="currentColor">
+      <rect x="5" y="1" width="6" height="9" rx="3"/>
+      <path d="M2 8a6 6 0 0012 0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="8" y1="14" x2="8" y2="16" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="5" y1="16" x2="11" y2="16" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+    </svg>
+    <!-- Speaker icon (shown when speaking) -->
+    <svg id="spk-icon" viewBox="0 0 16 16" width="13" height="13" fill="currentColor" style="display:none">
+      <path d="M3 6H1v4h2l4 3V3L3 6z"/>
+      <path d="M11.5 4.5a6 6 0 010 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      <path d="M9.5 6.5a3 3 0 010 3"  fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+    </svg>
+    <span id="voice-btn-label">Voice</span>
+  </button>
 </div>
 
-<!-- ── Left timeline (session history) ───────────────────── -->
+<!-- ── Voice feedback strip ───────────────────────────────────── -->
+<div id="voice-strip">
+  <div class="voice-waveform" id="voice-wave" style="display:none">
+    <div class="wv-bar" style="--d:.35s"></div>
+    <div class="wv-bar" style="--d:.28s"></div>
+    <div class="wv-bar" style="--d:.42s"></div>
+    <div class="wv-bar" style="--d:.31s"></div>
+    <div class="wv-bar" style="--d:.38s"></div>
+  </div>
+  <span id="voice-heard"></span>
+  <span id="voice-said"></span>
+</div>
+
+<!-- ── Left score timeline axis ───────────────────────────────── -->
 <div class="axis-line"></div>
 <div id="left-axis"></div>
 
-<!-- ── Right detail panel ────────────────────────────────── -->
+<!-- ── Right detail panel ────────────────────────────────────── -->
 <div id="detail-panel">
-  <button class="dp-close" id="dp-close">✕</button>
+  <button class="dp-speak" id="dp-speak" title="Read aloud">🔊</button>
+  <button class="dp-close"  id="dp-close">✕</button>
   <div id="dp-content"></div>
 </div>
 
-<!-- ── Bottom stats bar ──────────────────────────────────── -->
+<!-- ── Bottom KPI bar ─────────────────────────────────────────── -->
 <div id="bottom-bar">
   <div class="stat-cell">
     <div class="stat-label">Final Score</div>
@@ -367,429 +542,925 @@ button{font-family:inherit;cursor:pointer;border:0;background:none;}
     <div class="stat-value"><span id="stat-verdict" class="verdict-badge none">—</span></div>
   </div>
   <div class="stat-cell">
-    <div class="stat-label">Modules (real / stub)</div>
-    <div class="stat-value"><span id="stat-modules">— / —</span></div>
+    <div class="stat-label">Modules  real / stub</div>
+    <div class="stat-value">
+      <span id="stat-real">—</span>
+      <span class="unit">/</span>
+      <span id="stat-stub">—</span>
+    </div>
   </div>
   <div class="stat-cell">
     <div class="stat-label">Corpus Entries</div>
     <div class="stat-value"><span id="stat-corpus">—</span></div>
   </div>
   <div class="stat-cell">
+    <div class="stat-label">corpus.integrity</div>
+    <div class="stat-value"><span id="stat-integ" style="color:#9aa5b1">—</span></div>
+  </div>
+  <div class="stat-cell">
     <div class="stat-label">Baseline</div>
     <div class="stat-value"><span id="stat-baseline" style="color:#d4a017">0.9133</span></div>
   </div>
-  <div class="stat-cell" style="flex:0;padding:0 16px;">
+  <div class="stat-cell" style="flex:0 0 auto;padding:0 18px;min-width:140px;">
     <div class="stat-label">Last Run</div>
-    <div class="stat-value" style="font-size:12px;"><span id="stat-ts" style="color:#9aa5b1;font-family:monospace;">—</span></div>
+    <div class="stat-value" style="font-size:11px;flex-direction:column;align-items:flex-start;gap:1px;">
+      <span id="stat-ts"  style="font-size:11px;color:#e6e8eb;font-family:monospace;">—</span>
+      <span id="stat-ago" style="font-size:10px;color:#5f6975;font-family:monospace;"></span>
+    </div>
   </div>
 </div>
 
 <script>
 (() => {
-  'use strict';
-  const BASELINE = 0.9133, PASS = 0.85, WARN = 0.70;
-  const REFRESH_SECS = 30;
+'use strict';
 
-  // ── Particle starfield ───────────────────────────────────────────────────
-  const canvas = document.getElementById('stars');
-  const ctx = canvas.getContext('2d');
-  let stars = [];
+/* ══ Constants ════════════════════════════════════════════════ */
+const BASELINE  = 0.9133;
+const PASS      = 0.85;
+const WARN      = 0.70;
+const REFRESH_S = 30;
 
-  function initStars() {
+/* ══ State ════════════════════════════════════════════════════ */
+let currentData     = null;
+let voiceActive     = false;
+let speechSupported = typeof window.SpeechRecognition !== 'undefined'
+                   || typeof window.webkitSpeechRecognition !== 'undefined';
+let recognition     = null;
+let synth           = window.speechSynthesis || null;
+let selectedVoice   = null;
+let panelSpeakText  = '';
+
+/* ══ DOM helpers ══════════════════════════════════════════════ */
+const $  = id  => document.getElementById(id);
+const $$ = sel => document.querySelectorAll(sel);
+
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g,
+    c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function timeAgo(ts) {
+  if (!ts) return '';
+  try {
+    const s = Math.floor((Date.now() - new Date(ts.endsWith('Z') ? ts : ts + 'Z')) / 1000);
+    if (s < 0 || isNaN(s)) return '';
+    if (s < 60)    return s + 's ago';
+    if (s < 3600)  return Math.floor(s/60) + 'm ago';
+    if (s < 86400) return Math.floor(s/3600) + 'h ago';
+    return Math.floor(s/86400) + 'd ago';
+  } catch { return ''; }
+}
+
+/* ══ Score helpers ════════════════════════════════════════════ */
+function scoreColor(v) {
+  return v >= PASS ? '#4ea76b' : v >= WARN ? '#d4a017' : '#c64f4f';
+}
+function scoreLabel(v) {
+  return v >= PASS ? 'PASS' : v >= WARN ? 'WARN' : 'FAIL';
+}
+
+/* ══ Animated counter ══════════════════════════════════════ */
+function animateValue(el, from, to, duration, fmt) {
+  const start = performance.now();
+  function step(now) {
+    const t = Math.min((now - start) / duration, 1);
+    const ease = 1 - Math.pow(1 - t, 3); // ease-out-cubic
+    const val = from + (to - from) * ease;
+    el.textContent = fmt(val);
+    if (t < 1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+
+/* ══ Particle burst on data load ════════════════════════════ */
+function particleBurst(cx, cy, color, count) {
+  const g = $('particles');
+  for (let i = 0; i < count; i++) {
+    const angle = (i / count) * Math.PI * 2;
+    const el = document.createElementNS('http://www.w3.org/2000/svg','circle');
+    el.setAttribute('r','2.5');
+    el.setAttribute('cx', cx);
+    el.setAttribute('cy', cy);
+    el.setAttribute('fill', color);
+    el.setAttribute('opacity','0.9');
+    g.appendChild(el);
+    const tx = cx + Math.cos(angle) * 28;
+    const ty = cy + Math.sin(angle) * 28;
+    let t = 0;
+    (function anim() {
+      t += 0.04;
+      if (t >= 1) { el.remove(); return; }
+      el.setAttribute('cx', cx + (tx - cx) * t);
+      el.setAttribute('cy', cy + (ty - cy) * t);
+      el.setAttribute('opacity', (0.9 * (1 - t)).toFixed(2));
+      requestAnimationFrame(anim);
+    })();
+  }
+}
+
+/* ══ Beam travel particles ════════════════════════════════════ */
+const BEAM_DEFS = [
+  { id:'corpus',  x1:700, y1:400, x2:300,  y2:160, color:'#4ea76b' },
+  { id:'healing', x1:700, y1:400, x2:1000, y2:170, color:'#4ea76b' },
+  { id:'loop',    x1:700, y1:400, x2:1060, y2:600, color:'#20a4af' },
+  { id:'meta',    x1:700, y1:400, x2:300,  y2:620, color:'#20a4af' },
+  { id:'vll',     x1:700, y1:400, x2:700,  y2:130, color:'#6b7fff' },
+  { id:'council', x1:700, y1:400, x2:700,  y2:710, color:'#a076d4' },
+];
+const travelParticles = [];
+
+(function initTravelParticles() {
+  const g = $('particles');
+  BEAM_DEFS.forEach(bd => {
+    for (let i = 0; i < 4; i++) {
+      const el = document.createElementNS('http://www.w3.org/2000/svg','circle');
+      el.setAttribute('r','2');
+      el.setAttribute('fill', bd.color);
+      el.setAttribute('opacity','0');
+      g.appendChild(el);
+      travelParticles.push({ el, bd, t: i / 4, spd: 0.0018 + Math.random() * 0.0014 });
+    }
+  });
+})();
+
+function animateTravelParticles() {
+  travelParticles.forEach(p => {
+    p.t += p.spd;
+    if (p.t > 1) p.t -= 1;
+    const x = p.bd.x1 + (p.bd.x2 - p.bd.x1) * p.t;
+    const y = p.bd.y1 + (p.bd.y2 - p.bd.y1) * p.t;
+    p.el.setAttribute('cx', x.toFixed(1));
+    p.el.setAttribute('cy', y.toFixed(1));
+    const fade = p.t < 0.12 ? p.t / 0.12 : p.t > 0.82 ? (1 - p.t) / 0.18 : 1;
+    p.el.setAttribute('opacity', (0.85 * fade).toFixed(2));
+  });
+  requestAnimationFrame(animateTravelParticles);
+}
+animateTravelParticles();
+
+function setBeamColor(domainId, color) {
+  const flow = $('beam-flow-' + domainId);
+  if (flow) flow.setAttribute('stroke', color);
+  travelParticles.forEach(p => {
+    if (p.bd.id === domainId) {
+      p.bd.color = color;
+      p.el.setAttribute('fill', color);
+    }
+  });
+}
+
+/* ══ Starfield canvas ════════════════════════════════════════ */
+(function() {
+  const canvas = $('stars');
+  const ctx    = canvas.getContext('2d');
+  let stars    = [];
+  let shooting = null;
+
+  function init() {
     canvas.width  = window.innerWidth;
     canvas.height = window.innerHeight;
-    stars = Array.from({length: 200}, () => ({
+    stars = Array.from({length: 260}, () => ({
       x: Math.random() * canvas.width,
       y: Math.random() * canvas.height,
-      r: Math.random() * 1.2 + 0.2,
-      o: Math.random() * 0.5 + 0.1,
-      speed: Math.random() * 0.3 + 0.05,
+      r: Math.random() * 1.3 + 0.15,
+      baseO: Math.random() * 0.45 + 0.08,
+      twO:   Math.random() * 0.3,
+      twSpd: Math.random() * 0.012 + 0.003,
+      twPh:  Math.random() * Math.PI * 2,
+      spd:   Math.random() * 0.2 + 0.04,
     }));
   }
 
-  function drawStars() {
+  let frame = 0;
+  function draw() {
+    frame++;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    // Deep space radial gradient background
-    const grad = ctx.createRadialGradient(canvas.width/2, canvas.height*0.4, 0, canvas.width/2, canvas.height*0.4, canvas.width * 0.8);
-    grad.addColorStop(0,   'rgba(20,60,100,0.15)');
-    grad.addColorStop(0.5, 'rgba(8,12,24,0.08)');
-    grad.addColorStop(1,   'transparent');
-    ctx.fillStyle = grad;
+
+    // Deep space nebula glow
+    const ng = ctx.createRadialGradient(
+      canvas.width/2, canvas.height * 0.42, 0,
+      canvas.width/2, canvas.height * 0.42, canvas.width * 0.65);
+    ng.addColorStop(0,   'rgba(18,50,90,0.18)');
+    ng.addColorStop(0.4, 'rgba(8,12,24,0.08)');
+    ng.addColorStop(1,   'transparent');
+    ctx.fillStyle = ng;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+    // Stars with twinkling
     stars.forEach(s => {
+      const twinke = Math.sin(s.twPh + frame * s.twSpd) * s.twO;
       ctx.beginPath();
       ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(200,220,255,${s.o})`;
+      ctx.fillStyle = `rgba(200,220,255,${Math.max(0, s.baseO + twinke)})`;
       ctx.fill();
-      // Slow drift
-      s.y -= s.speed;
+      s.y -= s.spd;
       if (s.y < -2) { s.y = canvas.height + 2; s.x = Math.random() * canvas.width; }
     });
-    requestAnimationFrame(drawStars);
-  }
 
-  window.addEventListener('resize', initStars);
-  initStars();
-  drawStars();
-
-  // ── Helpers ──────────────────────────────────────────────────────────────
-  function scoreColor(v) {
-    return v >= PASS ? '#4ea76b' : v >= WARN ? '#d4a017' : '#c64f4f';
-  }
-  function esc(s) {
-    return String(s ?? '').replace(/[&<>"']/g, c =>
-      ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  }
-  function timeAgo(ts) {
-    if (!ts) return '';
-    try {
-      const diff = Math.floor((Date.now() - new Date(ts.endsWith('Z') ? ts : ts + 'Z').getTime()) / 1000);
-      if (diff < 0 || isNaN(diff)) return '';
-      if (diff < 60)    return diff + 's ago';
-      if (diff < 3600)  return Math.floor(diff/60) + 'm ago';
-      if (diff < 86400) return Math.floor(diff/3600) + 'h ago';
-      return Math.floor(diff/86400) + 'd ago';
-    } catch { return ''; }
-  }
-
-  // ── Node color update ─────────────────────────────────────────────────────
-  function setNodeColor(orbId, color, score) {
-    const orb = document.getElementById(orbId);
-    if (!orb) return;
-    orb.setAttribute('fill', color);
-    orb.style.filter = `drop-shadow(0 0 ${score >= PASS ? 12 : 6}px ${color}88)`;
-  }
-
-  function updateDomainNode(nodeId, score) {
-    const color = scoreColor(score);
-    const orbEl = document.getElementById('orb-' + nodeId);
-    const scoreEl = document.getElementById('score-' + nodeId);
-    if (orbEl) {
-      orbEl.setAttribute('fill', color);
-      orbEl.setAttribute('stroke', color + '44');
+    // Occasional shooting star
+    if (!shooting && frame % 240 === 0) {
+      shooting = {
+        x: Math.random() * canvas.width, y: 0,
+        vx: 3 + Math.random() * 4, vy: 4 + Math.random() * 5,
+        life: 1
+      };
     }
-    if (scoreEl) {
-      scoreEl.textContent = score.toFixed(3);
-      scoreEl.setAttribute('fill', '#fff');
+    if (shooting) {
+      ctx.beginPath();
+      ctx.moveTo(shooting.x, shooting.y);
+      ctx.lineTo(shooting.x - shooting.vx * 12, shooting.y - shooting.vy * 12);
+      ctx.strokeStyle = `rgba(220,235,255,${shooting.life * 0.7})`;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      shooting.x += shooting.vx;
+      shooting.y += shooting.vy;
+      shooting.life -= 0.04;
+      if (shooting.life <= 0) shooting = null;
     }
-    // Update beam color
-    const beam = document.getElementById('beam-l-' + nodeId);
-    if (beam) beam.setAttribute('stroke', color + 'bb');
+
+    requestAnimationFrame(draw);
   }
 
-  // ── Module status update ──────────────────────────────────────────────────
-  const MODULE_ORBS = ['rubric','preingest','config','heal','pain','guard','prov','cross','c12'];
-  function updateModules(realCount, stubCount) {
-    MODULE_ORBS.forEach((id, i) => {
-      const el = document.getElementById('orb-' + id);
-      if (!el) return;
-      const isReal = i < realCount;
-      const color  = isReal ? '#20a4af' : '#d4a017';
-      el.setAttribute('fill', color);
-    });
+  window.addEventListener('resize', init);
+  init(); draw();
+})();
+
+/* ══ Node positions for burst targets ════════════════════════ */
+const NODE_POS = {
+  core:    {cx:700, cy:400},
+  corpus:  {cx:300, cy:160},
+  healing: {cx:1000,cy:170},
+  loop:    {cx:1060,cy:600},
+  meta:    {cx:300, cy:620},
+  vll:     {cx:700, cy:130},
+  council: {cx:700, cy:710},
+};
+
+/* ══ Data render: domain nodes ════════════════════════════════ */
+const DOMAIN_MAP = {
+  'corpus.integrity': 'corpus',
+  'healing.engine':   'healing',
+  'loop.registry':    'loop',
+  'meta.engine':      'meta',
+};
+
+function updateDomainNode(key, score) {
+  const color   = scoreColor(score);
+  const orbEl   = $('orb-' + key);
+  const scoreEl = $('score-' + key);
+  if (orbEl) {
+    orbEl.setAttribute('fill', color);
+    orbEl.style.filter = `drop-shadow(0 0 ${score >= PASS ? 14 : 7}px ${color}99)`;
   }
+  if (scoreEl) scoreEl.textContent = score.toFixed(3);
+  setBeamColor(key, color);
+}
 
-  // ── Bottom bar ───────────────────────────────────────────────────────────
-  function updateBottomBar(data) {
-    const lr = data.last_run;
-    const kb = data.corpus_kb_stats;
+function updateDomainNodes(lastRun) {
+  if (!lastRun) return;
+  const cycles = lastRun.domain_results;
+  if (!Array.isArray(cycles) || cycles.length === 0) return;
+  const last = cycles[cycles.length - 1];
+  if (!Array.isArray(last)) return;
+  last.forEach(entry => {
+    if (!entry || !entry.domain) return;
+    // Map "corpus.integrity" → "corpus" etc.
+    const key = DOMAIN_MAP[entry.domain] || entry.domain.split('.')[0];
+    if (key) {
+      const score = parseFloat(entry.score || 0);
+      updateDomainNode(key, score);
+      const pos = NODE_POS[key];
+      if (pos) particleBurst(pos.cx, pos.cy, scoreColor(score), 5);
+    }
+  });
+}
 
-    if (lr) {
-      const fs    = parseFloat(lr.final_score || 0);
-      const delta = parseFloat(lr.delta || 0);
-      const v     = lr.verdict || '';
+/* ══ VLL node ════════════════════════════════════════════════ */
+function updateVllNode(vll) {
+  if (!vll) return;
+  const el = $('score-vll');
+  if (el) el.textContent = (vll.proposals_processed != null)
+    ? vll.proposals_processed + 'p'
+    : '—';
+}
 
-      const scoreEl = document.getElementById('stat-score');
-      scoreEl.textContent = fs.toFixed(3);
-      scoreEl.style.color = scoreColor(fs);
+/* ══ Council node ════════════════════════════════════════════ */
+function updateCouncilNode(decisions) {
+  const el = $('score-council');
+  if (!el) return;
+  el.textContent = (decisions && decisions.length)
+    ? decisions.length + 'dec'
+    : '0';
+}
 
-      const deltaEl = document.getElementById('stat-delta');
-      deltaEl.textContent = (delta >= 0 ? '+' : '') + delta.toFixed(3);
-      deltaEl.style.color = delta >= 0 ? '#4ea76b' : '#c64f4f';
+/* ══ Module orbs (real vs stub coloring) ════════════════════ */
+const MODULE_ORBS = ['rubric','preingest','config','heal','pain','guard','prov','cross','c12'];
 
-      const vEl = document.getElementById('stat-verdict');
-      vEl.textContent = v || '—';
-      vEl.className   = 'verdict-badge ' + (v === 'GO' ? 'go' : v === 'GO-WITH-CONDITIONS' ? 'cond' : v === 'NO-GO' ? 'nogo' : 'none');
+function updateModules(realCount, stubCount) {
+  MODULE_ORBS.forEach((id, i) => {
+    const el = $('orb-' + id);
+    if (!el) return;
+    const isReal  = i < realCount;
+    const color   = isReal ? '#20a4af' : '#d4a017';
+    el.setAttribute('fill', color);
+    el.style.filter = `drop-shadow(0 0 4px ${color}88)`;
+  });
+}
 
-      document.getElementById('stat-modules').textContent = (lr.real_modules || 0) + ' / ' + (lr.stub_modules || 0);
-      document.getElementById('stat-modules').style.color = (lr.stub_modules || 0) > 0 ? '#d4a017' : '#4ea76b';
+/* ══ Bottom bar ══════════════════════════════════════════════ */
+function updateBottomBar(data) {
+  const lr = data.last_run;
+  const kb = data.corpus_kb_stats;
 
-      const ts = (lr.timestamp || '').slice(0, 16).replace('T', ' ');
-      document.getElementById('stat-ts').textContent = ts + (timeAgo(lr.timestamp) ? '  (' + timeAgo(lr.timestamp) + ')' : '');
+  if (lr) {
+    const fs    = parseFloat(lr.final_score || 0);
+    const delta = parseFloat(lr.delta       || 0);
+    const v     = lr.verdict || '';
 
-      // Update core score
-      document.getElementById('core-score').textContent = fs.toFixed(3);
-      document.getElementById('core-score').setAttribute('fill', scoreColor(fs));
+    // Score (animated)
+    const scoreEl = $('stat-score');
+    const prev    = parseFloat(scoreEl.dataset.prev || 0);
+    scoreEl.dataset.prev = fs;
+    animateValue(scoreEl, prev, fs, 800, n => n.toFixed(3));
+    scoreEl.style.color = scoreColor(fs);
 
-      // Update corpus GAPS badge
-      const gap = BASELINE - fs;
-      const gapEl = document.getElementById('gaplabel-corpus');
+    // Delta
+    const dEl = $('stat-delta');
+    dEl.textContent = (delta >= 0 ? '+' : '') + delta.toFixed(3);
+    dEl.style.color = delta >= 0 ? '#4ea76b' : '#c64f4f';
+
+    // Verdict
+    const vEl = $('stat-verdict');
+    vEl.textContent = v || '—';
+    vEl.className = 'verdict-badge ' +
+      (v === 'GO' ? 'go' : v === 'GO-WITH-CONDITIONS' ? 'cond' : v === 'NO-GO' ? 'nogo' : 'none');
+
+    // Modules (real vs stub)
+    const realEl = $('stat-real');
+    const stubEl = $('stat-stub');
+    realEl.textContent = lr.real_modules || 0;
+    stubEl.textContent = lr.stub_modules || 0;
+    realEl.style.color = '#4ea76b';
+    stubEl.style.color = (lr.stub_modules || 0) > 0 ? '#d4a017' : '#4ea76b';
+
+    // Timestamp
+    const ts = lr.timestamp || '';
+    $('stat-ts').textContent  = ts.slice(0, 10) + ' ' + ts.slice(11, 16);
+    $('stat-ago').textContent = timeAgo(ts);
+
+    // Core score
+    const coreScoreEl = $('core-score');
+    animateValue(coreScoreEl, parseFloat(coreScoreEl.dataset.prev || 0), fs, 1000,
+      n => n.toFixed(3));
+    coreScoreEl.dataset.prev = fs;
+    coreScoreEl.setAttribute('fill', scoreColor(fs));
+
+    // corpus.integrity GAPS badge
+    const lastCycle = (lr.domain_results || []).slice(-1)[0] || [];
+    const corpEntry = Array.isArray(lastCycle)
+      ? lastCycle.find(e => e && (e.domain === 'corpus.integrity' || (e.domain||'').startsWith('corpus')))
+      : null;
+    if (corpEntry) {
+      const cs = parseFloat(corpEntry.score || 0);
+      const gap = BASELINE - cs;
+      const gapEl = $('gap-label');
       if (gapEl) {
-        gapEl.textContent = gap > 0 ? 'GAP ' + gap.toFixed(3) : 'ABOVE BASELINE';
+        gapEl.textContent = gap > 0
+          ? 'GAP ' + gap.toFixed(3)
+          : '▲ ABOVE BL';
         gapEl.setAttribute('fill', gap > 0 ? '#d4a017' : '#4ea76b');
       }
-
-      updateModules(lr.real_modules || 0, lr.stub_modules || 0);
     }
 
-    if (kb) {
-      const n = kb.total_entries_in_kb || kb.entries_passed || 0;
-      document.getElementById('stat-corpus').textContent = n.toLocaleString();
-    } else {
-      document.getElementById('stat-corpus').textContent = 'No KB';
-      document.getElementById('stat-corpus').style.color = '#5f6975';
-    }
+    updateModules(lr.real_modules || 0, lr.stub_modules || 0);
   }
 
-  // ── Domain nodes ─────────────────────────────────────────────────────────
-  function updateDomainNodes(lr) {
-    if (!lr || !lr.domain_results || !lr.domain_results.length) return;
-    const last = lr.domain_results[lr.domain_results.length - 1];
-    if (!Array.isArray(last)) return;
-    last.forEach(entry => {
-      if (!entry || !entry.domain) return;
-      const s = parseFloat(entry.score || 0);
-      const key = entry.domain.split('.')[0]; // corpus, healing, loop, meta
-      updateDomainNode(key, s);
-    });
+  // Corpus entries + integrity
+  if (kb) {
+    const n    = kb.total_entries_in_kb || kb.entries_passed || 0;
+    const intg = parseFloat(kb.predicted_integrity_score || 0);
+    $('stat-corpus').textContent = n.toLocaleString();
+    const integEl = $('stat-integ');
+    integEl.textContent = intg.toFixed(3);
+    integEl.style.color = scoreColor(intg);
+  } else {
+    $('stat-corpus').textContent = 'No KB';
+    $('stat-corpus').style.color = '#5f6975';
   }
+}
 
-  // ── VLL node ─────────────────────────────────────────────────────────────
-  function updateVllNode(vll) {
-    const el = document.getElementById('score-vll');
-    if (!el) return;
-    if (vll && vll.proposals_processed != null) {
-      el.textContent = vll.proposals_processed + ' prop.';
-    }
+/* ══ Timeline (left axis) ════════════════════════════════════ */
+function updateTimeline(scores) {
+  const axis = $('left-axis');
+  if (!scores || scores.length === 0) {
+    axis.innerHTML = '<div class="ax-entry" style="width:100%"><div class="ax-dot" style="background:#5f6975"></div><span class="ax-label">No history</span></div>';
+    return;
   }
+  axis.innerHTML = scores.slice().reverse().map((s, i) => {
+    const n = scores.length - i;
+    return `<div class="ax-entry">
+      <span class="ax-label" style="color:#5f6975">S${n}</span>
+      <span class="ax-score" style="color:${scoreColor(s)}">${s.toFixed(3)}</span>
+      <div class="ax-dot" style="background:${scoreColor(s)}"></div>
+    </div>`;
+  }).join('');
+}
 
-  // ── Council node ─────────────────────────────────────────────────────────
-  function updateCouncilNode(decisions) {
-    const el = document.getElementById('score-council');
-    if (!el) return;
-    el.textContent = (decisions && decisions.length) ? decisions.length + ' decisions' : 'no decisions';
-  }
+/* ══ Node info metadata ══════════════════════════════════════ */
+const NODE_INFO = {
+  core:           { title:'WALCHE CORE',      tier:'Engine',  sub:'MetaEngine / Bertha — central 4-cycle forensic evaluator' },
+  corpus:         { title:'corpus.integrity', tier:'Domain',  sub:'CEVIP pipeline health · primary platform health metric' },
+  healing:        { title:'healing.engine',   tier:'Domain',  sub:'Self-repair proposal generator — diagnose → propose → apply' },
+  loop:           { title:'loop.registry',    tier:'Domain',  sub:'ReAct-class loop orchestrator (Yao et al. arXiv:2210.03629)' },
+  meta:           { title:'meta.engine',      tier:'Domain',  sub:'Bertha meta-evaluator · C12 rubric_ok + risk_ok judgment' },
+  vll:            { title:'VLL',              tier:'Subsystem',sub:'Verification Learning Loop — bounded RSI · LEARNING_RATE=0.03' },
+  council:        { title:'Grand Council',    tier:'Governance',sub:'47-judge deliberation · APPROVE / GO-WITH-CONDITIONS / REJECT' },
+  'mod-rubric':   { title:'RubricScorer',     tier:'Module',  sub:'7-dimension corpus scoring engine' },
+  'mod-preingest':{ title:'PreIngestGate',    tier:'Module',  sub:'CEVIP phase 1 — intake validation and provenance tagging' },
+  'mod-config':   { title:'WalcheConfig',     tier:'Module',  sub:'Root configuration loader and environment resolver' },
+  'mod-heal':     { title:'HealingEngine',    tier:'Module',  sub:'Proposal generation + HealingHistory tracking' },
+  'mod-pain':     { title:'PAIN-FMEA',        tier:'Module',  sub:'Adversarial failure mode & effects analysis (NeSy Type 2)' },
+  'mod-guard':    { title:'GuardRail',        tier:'Module',  sub:'Safety constraint propagation — blocks unsafe proposals' },
+  'mod-prov':     { title:'Provenance',       tier:'Module',  sub:'SHA-256 lineage tracking chain for all corpus mutations' },
+  'mod-cross':    { title:'CrossEnsemble',    tier:'Module',  sub:'PAIN + SAGE + ORACLE tri-perspective gate (NeSy Type 3)' },
+  'mod-c12':      { title:'C12 Gate',         tier:'Module',  sub:'Binary rubric_ok + risk_ok verdict gate before commit' },
+};
 
-  // ── Left timeline (session history) ──────────────────────────────────────
-  function updateTimeline(scores) {
-    const axis = document.getElementById('left-axis');
-    if (!scores || scores.length === 0) {
-      axis.innerHTML = '<div class="axis-label"><div class="axis-dot"></div>No history</div>';
-      return;
-    }
-    axis.innerHTML = scores.slice().reverse().map((s, i) =>
-      `<div class="axis-label">
-        <div class="axis-dot" style="background:${scoreColor(s)};"></div>
-        <span>S${scores.length - i}</span>
-        <span style="color:${scoreColor(s)};font-family:monospace;">${s.toFixed(3)}</span>
-      </div>`
-    ).join('');
-  }
+/* ══ Detail panel ════════════════════════════════════════════ */
+function openDetailPanel(nodeId) {
+  const info = NODE_INFO[nodeId] || { title: nodeId, tier: 'Node', sub: '' };
+  const data = currentData;
 
-  // ── Detail panel ─────────────────────────────────────────────────────────
-  let currentData = null;
+  let html = `
+    <div class="dp-tier">${esc(info.tier)}</div>
+    <div class="dp-name">${esc(info.title)}</div>`;
 
-  const nodeInfo = {
-    core: { title: 'WALCHE CORE', sub: 'MetaEngine / Bertha — central evaluator' },
-    corpus:  { title: 'corpus.integrity', sub: 'CEVIP pipeline score · primary health metric' },
-    healing: { title: 'healing.engine',   sub: 'Self-repair proposal generator' },
-    loop:    { title: 'loop.registry',    sub: 'ReAct-class loop orchestrator' },
-    meta:    { title: 'meta.engine',      sub: 'Bertha meta-evaluator (C12 judge)' },
-    vll:     { title: 'VLL',              sub: 'Verification Learning Loop — bounded RSI' },
-    council: { title: 'Grand Council',    sub: '47-judge governance deliberation system' },
-    'mod-rubric':    { title: 'RubricScorer',    sub: '7-dimension corpus scoring engine' },
-    'mod-preingest': { title: 'PreIngestGate',   sub: 'CEVIP phase 1 — intake validation' },
-    'mod-config':    { title: 'WalcheConfig',    sub: 'Root configuration loader' },
-    'mod-heal':      { title: 'HealingEngine',   sub: 'Diagnose → propose → apply loop' },
-    'mod-pain':      { title: 'PAIN-FMEA',       sub: 'Adversarial failure mode analysis' },
-    'mod-guard':     { title: 'GuardRail',        sub: 'Safety constraint propagation layer' },
-    'mod-prov':      { title: 'Provenance',       sub: 'SHA-256 lineage tracking chain' },
-    'mod-cross':     { title: 'CrossEnsemble',    sub: 'PAIN + SAGE + ORACLE tri-perspective gate' },
-    'mod-c12':       { title: 'C12 Gate',         sub: 'Binary rubric_ok + risk_ok verdict' },
-  };
-
-  function openDetailPanel(nodeId) {
-    const panel = document.getElementById('detail-panel');
-    const info  = nodeInfo[nodeId] || { title: nodeId, sub: '' };
-    const data  = currentData;
-
-    let html = `<div class="dp-title">${esc(nodeId.startsWith('mod-') ? 'Module' : 'Domain')}</div>
-      <div class="dp-name">${esc(info.title)}</div>`;
-
-    if (nodeId === 'core' && data && data.last_run) {
-      const lr = data.last_run;
-      const fs = parseFloat(lr.final_score || 0);
-      html += `<div class="dp-section"><h4>Last Run</h4>
-        <dl class="dp-kv">
-          <dt>Score</dt><dd style="color:${scoreColor(fs)}">${fs.toFixed(4)}</dd>
-          <dt>Verdict</dt><dd style="color:${scoreColor(fs)}">${esc(lr.verdict || '—')}</dd>
-          <dt>Delta</dt><dd style="color:${parseFloat(lr.delta||0)>=0?'#4ea76b':'#c64f4f'}">${(parseFloat(lr.delta||0)>=0?'+':'')}${parseFloat(lr.delta||0).toFixed(4)}</dd>
-          <dt>Real modules</dt><dd>${lr.real_modules || 0}</dd>
-          <dt>Stub modules</dt><dd style="color:${(lr.stub_modules||0)>0?'#d4a017':'#4ea76b'}">${lr.stub_modules || 0}</dd>
-        </dl>
-        ${(lr.cycle_scores||[]).length>0?`<div style="margin-top:10px;font-size:11px;color:#9aa5b1;">Cycles: ${lr.cycle_scores.map((s,i)=>`<span style="color:${scoreColor(parseFloat(s))}">${i+1}: ${parseFloat(s).toFixed(3)}</span>`).join(' → ')}</div>`:''}
+  /* ── Core ─────────────────────────────────────────────── */
+  if (nodeId === 'core' && data && data.last_run) {
+    const lr  = data.last_run;
+    const fs  = parseFloat(lr.final_score || 0);
+    const del = parseFloat(lr.delta || 0);
+    html += `<div class="dp-section"><h4>Last Run</h4>
+      <dl class="dp-kv">
+        <dt>Score</dt><dd style="color:${scoreColor(fs)}">${fs.toFixed(4)}</dd>
+        <dt>Verdict</dt><dd style="color:${scoreColor(fs)};font-weight:700">${esc(lr.verdict||'—')}</dd>
+        <dt>Delta</dt><dd style="color:${del>=0?'#4ea76b':'#c64f4f'}">${del>=0?'+':''}${del.toFixed(4)}</dd>
+        <dt>Cycles</dt><dd>${lr.cycles || (lr.cycle_scores||[]).length || '—'}</dd>
+        <dt>Real modules</dt><dd style="color:#4ea76b">${lr.real_modules||0}</dd>
+        <dt>Stub modules</dt><dd style="color:${(lr.stub_modules||0)>0?'#d4a017':'#4ea76b'}">${lr.stub_modules||0}</dd>
+        <dt>Timestamp</dt><dd style="font-size:10px">${(lr.timestamp||'').slice(0,19).replace('T',' ')}</dd>
+      </dl>
+      <div class="dp-bar-wrap" style="margin-top:10px">
+        <div class="dp-bar-fill" style="width:${Math.round(fs*100)}%;background:${scoreColor(fs)}"></div>
+      </div>`;
+    const cs = lr.cycle_scores || [];
+    if (cs.length > 0) {
+      const lo = Math.min(...cs), hi = Math.max(...cs), rng = hi - lo || 0.01;
+      html += `<div class="cycle-spark">` + cs.map(s => {
+        const h = 4 + Math.round(((s - lo) / rng) * 16);
+        return `<div class="cs-bar" style="height:${h}px;background:${scoreColor(s)}" title="${s.toFixed(3)}"></div>`;
+      }).join('') + `</div>
+      <div style="font-size:10px;color:#9aa5b1;margin-top:4px;font-family:monospace">
+        cycles: ${cs.map((s,i)=>`<span style="color:${scoreColor(s)}">${i+1}:${s.toFixed(3)}</span>`).join(' → ')}
       </div>`;
     }
+    html += '</div>';
+  }
 
-    // Domain detail
-    if (['corpus','healing','loop','meta'].includes(nodeId) && data && data.last_run) {
-      const lr = data.last_run;
-      const last = (lr.domain_results || []).slice(-1)[0] || [];
-      const entry = (Array.isArray(last) ? last : []).find(e => e && e.domain && e.domain.startsWith(nodeId));
-      if (entry) {
-        const s  = parseFloat(entry.score || 0);
-        const db = s - BASELINE;
-        html += `<div class="dp-section"><h4>Domain Score</h4>
-          <dl class="dp-kv">
-            <dt>Score</dt><dd style="color:${scoreColor(s)}">${s.toFixed(4)}</dd>
-            <dt>vs Baseline</dt><dd style="color:${db>=0?'#4ea76b':'#c64f4f'}">${db>=0?'+':''}${db.toFixed(4)}</dd>
-            <dt>Status</dt><dd style="color:${scoreColor(s)}">${s>=PASS?'PASS':s>=WARN?'WARN':'FAIL'}</dd>
-          </dl>
-          <div class="dp-bar-wrap" style="margin-top:10px;">
-            <div class="dp-bar-fill" style="width:${Math.round(s*100)}%;background:${scoreColor(s)};"></div>
-          </div>
-        </div>`;
-      }
-    }
-
-    // VLL detail
-    if (nodeId === 'vll' && data && data.vll_state) {
-      const vll = data.vll_state;
-      const adj  = vll.adjusted_weights || {};
-      const base = vll.baseline_weights || {};
-      html += `<div class="dp-section"><h4>VLL State</h4>
+  /* ── Domain nodes ─────────────────────────────────────── */
+  if (['corpus','healing','loop','meta'].includes(nodeId) && data && data.last_run) {
+    const lr     = data.last_run;
+    const cycles = lr.domain_results || [];
+    const last   = cycles[cycles.length - 1] || [];
+    const entry  = Array.isArray(last)
+      ? last.find(e => e && (DOMAIN_MAP[e.domain] === nodeId || (e.domain||'').split('.')[0] === nodeId))
+      : null;
+    if (entry) {
+      const s  = parseFloat(entry.score || 0);
+      const db = s - BASELINE;
+      html += `<div class="dp-section"><h4>Domain Score</h4>
         <dl class="dp-kv">
-          <dt>Proposals</dt><dd>${vll.proposals_processed || 0}</dd>
-          <dt>Last updated</dt><dd>${(vll.last_updated || '—').slice(0,10)}</dd>
-          <dt>Learning rate</dt><dd>0.03</dd>
-          <dt>Weight bounds</dt><dd>0.60 – 1.40</dd>
+          <dt>Score</dt><dd style="color:${scoreColor(s)}">${s.toFixed(4)}</dd>
+          <dt>Status</dt><dd style="color:${scoreColor(s)};font-weight:700">${scoreLabel(s)}</dd>
+          <dt>vs Baseline</dt><dd style="color:${db>=0?'#4ea76b':'#c64f4f'}">${db>=0?'+':''}${db.toFixed(4)}</dd>
+          ${entry.confidence != null ? `<dt>Confidence</dt><dd>${parseFloat(entry.confidence).toFixed(3)}</dd>` : ''}
         </dl>
+        <div class="dp-bar-wrap" style="margin-top:10px">
+          <div class="dp-bar-fill" style="width:${Math.round(s*100)}%;background:${scoreColor(s)}"></div>
+        </div>
       </div>`;
-      const dims = Object.keys({...base,...adj});
-      if (dims.length) {
-        html += `<div class="dp-section"><h4>Weight Adjustments</h4>`;
-        dims.forEach(d => {
-          const bv = parseFloat(base[d]||1); const av = parseFloat(adj[d]||bv);
-          const diff = av - bv;
-          html += `<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;">
-            <span style="color:#9aa5b1;font-family:monospace">${esc(d)}</span>
-            <span style="color:${diff>=0?'#4ea76b':'#c64f4f'};font-family:monospace">${diff>=0?'+':''}${diff.toFixed(4)}</span>
-          </div>`;
-        });
-        html += '</div>';
-      }
     }
+  }
 
-    // Council detail
-    if (nodeId === 'council' && data && data.council_decisions) {
-      const decisions = data.council_decisions.slice(-5).reverse();
-      html += `<div class="dp-section"><h4>Recent Decisions (${data.council_decisions.length} total)</h4>`;
-      if (decisions.length === 0) {
-        html += '<div style="color:#5f6975;font-size:12px;">No decisions yet.</div>';
-      }
-      decisions.forEach(d => {
-        const v = d.verdict || d.final_verdict || '?';
-        const isOk = /APPROVE|^GO$/i.test(v);
-        const color = isOk ? '#4ea76b' : /CONDITION/i.test(v) ? '#d4a017' : '#c64f4f';
-        html += `<div style="margin-bottom:8px;padding:8px;background:rgba(255,255,255,0.03);border-radius:4px;border-left:3px solid ${color}">
-          <div style="display:flex;justify-content:space-between;font-size:11px;">
-            <span style="font-family:monospace;color:#e6e8eb">${esc(d.proposal_type||d.type||'?')}</span>
-            <span style="color:${color};font-family:monospace;font-weight:700">${esc(v)}</span>
-          </div>
-          <div style="font-size:10px;color:#5f6975;font-family:monospace;margin-top:3px">${(d.timestamp||'').slice(0,16)}</div>
-          ${d.summary?`<div style="font-size:11px;color:#9aa5b1;margin-top:4px">${esc(d.summary)}</div>`:''}
+  /* ── Corpus extra detail ──────────────────────────────── */
+  if (nodeId === 'corpus' && data && data.corpus_kb_stats) {
+    const kb   = data.corpus_kb_stats;
+    const intg = parseFloat(kb.predicted_integrity_score || 0);
+    const n    = kb.total_entries_in_kb || kb.entries_passed || 0;
+    const gap  = PASS - intg;
+    html += `<div class="dp-section"><h4>Knowledge Base</h4>
+      <dl class="dp-kv">
+        <dt>Entries</dt><dd>${n.toLocaleString()}</dd>
+        <dt>Tokens</dt><dd>${(kb.total_tokens||0).toLocaleString()}</dd>
+        <dt>Integrity</dt><dd style="color:${scoreColor(intg)}">${intg.toFixed(4)}</dd>
+        ${kb.generated_at ? `<dt>Generated</dt><dd style="font-size:10px">${kb.generated_at.slice(0,10)}</dd>` : ''}
+      </dl>
+    </div>
+    <div class="dp-note" style="border-color:${gap>0?'rgba(212,160,23,.3)':'rgba(78,167,107,.3)'}">
+      <strong style="color:${gap>0?'#d4a017':'#4ea76b'}">
+        ${gap>0 ? '⚠ VLL Cross Gate locked' : '✓ VLL Cross Gate unlocked'}
+      </strong>
+      ${gap>0
+        ? `corpus.integrity ${intg.toFixed(3)} is ${gap.toFixed(3)} below PASS threshold (0.85).<br>Priority: OSMODA corpus ingest → expected 0.78 → 0.87–0.92.`
+        : `corpus.integrity meets PASS threshold — VLL cross-validation enabled.`}
+    </div>`;
+  }
+
+  /* ── VLL ────────────────────────────────────────────────── */
+  if (nodeId === 'vll' && data && data.vll_state) {
+    const vll = data.vll_state;
+    const adj = vll.adjusted_weights  || {};
+    const bsl = vll.baseline_weights  || {};
+    html += `<div class="dp-section"><h4>VLL State</h4>
+      <dl class="dp-kv">
+        <dt>Proposals</dt><dd>${vll.proposals_processed || 0}</dd>
+        <dt>Last updated</dt><dd style="font-size:10px">${(vll.last_updated||'—').slice(0,10)}</dd>
+        <dt>Learning rate</dt><dd>0.03</dd>
+        <dt>Weight bounds</dt><dd>0.60 – 1.40</dd>
+        <dt>Decay rate</dt><dd>0.01</dd>
+      </dl></div>`;
+    const dims = Object.keys({...bsl,...adj});
+    if (dims.length) {
+      html += `<div class="dp-section"><h4>Weight Adjustments (top dims)</h4>`;
+      dims.sort((a,b) => Math.abs((adj[b]||1)-(bsl[b]||1)) - Math.abs((adj[a]||1)-(bsl[a]||1)))
+          .slice(0, 6).forEach(d => {
+        const bv = parseFloat(bsl[d] || 1);
+        const av = parseFloat(adj[d] || bv);
+        const df = av - bv;
+        html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">
+          <span style="font-family:monospace;font-size:11px;color:#9aa5b1">${esc(d)}</span>
+          <span style="font-family:monospace;font-size:11px;color:${df>=0?'#4ea76b':'#c64f4f'}">${df>=0?'+':''}${df.toFixed(4)}</span>
         </div>`;
       });
       html += '</div>';
     }
+  }
 
-    // Corpus detail
-    if (nodeId === 'corpus' && data && data.corpus_kb_stats) {
-      const kb = data.corpus_kb_stats;
-      const intg = parseFloat(kb.predicted_integrity_score || 0);
-      html += `<div class="dp-section"><h4>Knowledge Base</h4>
-        <dl class="dp-kv">
-          <dt>Entries</dt><dd>${(kb.total_entries_in_kb||kb.entries_passed||0).toLocaleString()}</dd>
-          <dt>Tokens</dt><dd>${(kb.total_tokens||0).toLocaleString()}</dd>
-          <dt>Integrity</dt><dd style="color:${scoreColor(intg)}">${intg.toFixed(4)}</dd>
-          <dt>Generated</dt><dd>${(kb.generated_at||'—').slice(0,10)}</dd>
-        </dl>
+  /* ── Council ────────────────────────────────────────────── */
+  if (nodeId === 'council' && data && data.council_decisions) {
+    const decs = data.council_decisions;
+    html += `<div class="dp-section"><h4>Recent Decisions (${decs.length} total)</h4>`;
+    if (decs.length === 0) {
+      html += '<div style="color:#5f6975;font-size:12px">No decisions logged yet.</div>';
+    }
+    decs.slice(-5).reverse().forEach(d => {
+      const v = d.verdict || d.final_verdict || '?';
+      const t = d.proposal_type || d.type || '?';
+      const isOk  = /APPROV|^GO$/i.test(v);
+      const isCnd = /CONDITION/i.test(v);
+      const c     = isOk ? '#4ea76b' : isCnd ? '#d4a017' : '#c64f4f';
+      html += `<div class="dp-decision" style="border-left-color:${c}">
+        <div style="display:flex;justify-content:space-between;font-size:11px">
+          <span style="font-family:monospace;color:#e6e8eb">${esc(t)}</span>
+          <span style="font-family:monospace;font-weight:700;color:${c}">${esc(v)}</span>
+        </div>
+        <div style="font-size:10px;color:#5f6975;font-family:monospace;margin-top:2px">${(d.timestamp||'').slice(0,16)}</div>
+        ${d.summary ? `<div style="font-size:11px;color:#9aa5b1;margin-top:4px">${esc(d.summary)}</div>` : ''}
       </div>`;
-      const gap = PASS - intg;
-      if (gap > 0) {
-        html += `<div class="dp-analysis">
-          <strong>⚠ VLL Cross Gate locked</strong>
-          corpus.integrity ${intg.toFixed(3)} is ${gap.toFixed(3)} below PASS threshold (0.85).<br>
-          Priority action: OSMODA corpus ingest → expected to push 0.78→0.87–0.92.
-        </div>`;
-      } else {
-        html += `<div class="dp-analysis" style="border-color:rgba(78,167,107,0.3)"><strong style="color:#4ea76b">✓ VLL Cross Gate unlocked</strong>corpus.integrity meets PASS threshold.</div>`;
-      }
-    }
-
-    // Analysis section (RI-style)
-    html += `<div class="dp-section"><h4>Analysis</h4>
-      <div class="dp-analysis">
-        <strong>Architecture Note</strong>
-        ${esc(info.sub)}<br>
-        WALCHE classification: ReAct-class (Yao et al. 2022 arXiv:2210.03629) · Type 2–3 NeSy (Kautz 2022) · Bounded RSI (VLL + 4-cycle cap + C12 guard).
-      </div>
-    </div>`;
-
-    document.getElementById('dp-content').innerHTML = html;
-    panel.classList.add('open');
+    });
+    html += '</div>';
   }
 
-  document.getElementById('dp-close').addEventListener('click', () => {
-    document.getElementById('detail-panel').classList.remove('open');
-  });
+  /* ── Architecture note (all nodes) ───────────────────────── */
+  html += `<div class="dp-section"><h4>Architecture</h4>
+    <div class="dp-note">
+      <strong style="color:#d4a017">WALCHE Classification</strong>
+      ${esc(info.sub)}<br>
+      <span style="color:#5f6975">ReAct-class (arXiv:2210.03629) · NeSy Type 2–3 · Bounded RSI (VLL + 4-cycle + C12)</span>
+    </div>
+    <div style="margin-top:8px">
+      ${['corpus','healing','loop','meta','vll','council'].includes(nodeId)
+        ? `<span class="dp-tag">live data</span>` : `<span class="dp-tag stub">module</span>`}
+      <span class="dp-tag" style="background:rgba(107,127,255,.1);border-color:rgba(107,127,255,.25);color:#8fa0ff">WALCHE v2</span>
+    </div>
+  </div>`;
 
-  // Wire node clicks
-  document.querySelectorAll('.node-group').forEach(g => {
-    g.addEventListener('click', () => openDetailPanel(g.dataset.node));
-    g.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') openDetailPanel(g.dataset.node); });
-  });
+  // Capture text for speak button
+  panelSpeakText = buildSpeakText(nodeId, data);
 
-  // ── API + render ─────────────────────────────────────────────────────────
-  async function fetchAndRender() {
-    const pill = document.getElementById('api-pill');
-    pill.textContent = 'loading…';
-    pill.className = 'pill';
-    try {
-      const r = await fetch('/api/status');
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      const data = await r.json();
-      currentData = data;
-      pill.textContent = 'live';
-      pill.className = 'pill ok';
-      updateBottomBar(data);
-      updateDomainNodes(data.last_run);
-      updateVllNode(data.vll_state);
-      updateCouncilNode(data.council_decisions);
-      updateTimeline(data.score_trend || []);
-    } catch (err) {
-      pill.textContent = 'server offline';
-      pill.className = 'pill bad';
-      document.getElementById('stat-score').textContent = '—';
-      document.getElementById('stat-score').style.color = '#5f6975';
+  $('dp-content').innerHTML = html;
+  $('detail-panel').classList.add('open');
+}
+
+function closeDetailPanel() {
+  $('detail-panel').classList.remove('open');
+}
+
+/* ══ TTS engine ══════════════════════════════════════════════ */
+function speak(text) {
+  if (!synth) return;
+  synth.cancel();
+  const utt   = new SpeechSynthesisUtterance(text);
+  utt.rate    = 0.97;
+  utt.pitch   = 0.82;
+  utt.volume  = 1.0;
+  if (selectedVoice) utt.voice = selectedVoice;
+
+  utt.onstart = () => {
+    $('btn-voice').classList.remove('listening');
+    $('btn-voice').classList.add('speaking');
+    $('mic-icon').style.display = 'none';
+    $('spk-icon').style.display = '';
+    $('voice-btn-label').textContent = 'Speaking…';
+  };
+  utt.onend = utt.onerror = () => {
+    $('btn-voice').classList.remove('speaking');
+    $('mic-icon').style.display = '';
+    $('spk-icon').style.display = 'none';
+    $('voice-btn-label').textContent = 'Voice';
+  };
+  synth.speak(utt);
+}
+
+function showVoiceFeedback(heard, said) {
+  const strip = $('voice-strip');
+  if (heard) $('voice-heard').textContent = heard;
+  if (said)  $('voice-said').textContent  = said;
+  strip.classList.add('active');
+  clearTimeout(strip._timer);
+  strip._timer = setTimeout(() => {
+    strip.classList.remove('active');
+    $('voice-heard').textContent = '';
+    $('voice-said').textContent  = '';
+  }, 6000);
+  if (said) speak(said);
+}
+
+// Pick a voice: prefer English male system voices
+function pickVoice() {
+  if (!synth) return;
+  const voices = synth.getVoices();
+  const pref   = ['Google UK English Male','Microsoft Mark','Daniel',
+                   'Google US English','Alex','Aaron','Moira','en-US','en-GB'];
+  for (const p of pref) {
+    const v = voices.find(v => v.name.includes(p) || v.lang.startsWith(p.slice(0,5)));
+    if (v) { selectedVoice = v; return; }
+  }
+  selectedVoice = voices.find(v => v.lang.startsWith('en')) || voices[0] || null;
+}
+if (synth) {
+  synth.getVoices().length ? pickVoice() : synth.addEventListener('voiceschanged', pickVoice);
+}
+
+/* ══ Voice command responses ══════════════════════════════════ */
+function buildSpeakText(nodeId, data) {
+  const info = NODE_INFO[nodeId] || { title: nodeId };
+  if (!data) return `${info.title}. No data available.`;
+  const lr = data.last_run;
+  if (nodeId === 'core') {
+    if (!lr) return 'WALCHE core. No run data.';
+    const fs = parseFloat(lr.final_score || 0);
+    return `WALCHE core. Final score ${fs.toFixed(3)}. Verdict: ${lr.verdict||'unknown'}. ` +
+           `${lr.real_modules||0} real modules, ${lr.stub_modules||0} on stubs.`;
+  }
+  if (['corpus','healing','loop','meta'].includes(nodeId) && lr) {
+    const last  = (lr.domain_results||[]).slice(-1)[0] || [];
+    const entry = Array.isArray(last) ? last.find(e => DOMAIN_MAP[e.domain||''] === nodeId || (e.domain||'').split('.')[0] === nodeId) : null;
+    if (entry) {
+      const s = parseFloat(entry.score || 0);
+      return `${info.title}. Score ${s.toFixed(3)}. Status: ${scoreLabel(s)}.`;
     }
   }
+  if (nodeId === 'vll' && data.vll_state) {
+    const vll = data.vll_state;
+    return `V.L.L. state. ${vll.proposals_processed||0} proposals processed. Last updated ${(vll.last_updated||'unknown').slice(0,10)}.`;
+  }
+  if (nodeId === 'council' && data.council_decisions) {
+    const n = data.council_decisions.length;
+    const last = data.council_decisions.slice(-1)[0];
+    const lv   = last ? (last.verdict||last.final_verdict||'unknown') : 'none';
+    return `Grand Council. ${n} decisions logged. Most recent verdict: ${lv}.`;
+  }
+  return `${info.title}. ${info.sub}.`;
+}
 
-  // ── Countdown + auto-refresh ──────────────────────────────────────────────
-  let countdown = REFRESH_SECS;
-  setInterval(() => {
-    countdown -= 1;
-    if (countdown <= 0) { countdown = REFRESH_SECS; fetchAndRender(); }
-    document.getElementById('refresh-pill').textContent = 'refresh in ' + countdown + 's';
-  }, 1000);
+function speakStatus() {
+  if (!currentData) { showVoiceFeedback('', 'No data — please refresh.'); return; }
+  const lr = currentData.last_run;
+  if (!lr) { showVoiceFeedback('', 'No run data. Execute walche demo to generate.'); return; }
+  const fs  = parseFloat(lr.final_score || 0);
+  const del = parseFloat(lr.delta       || 0);
+  const st  = fs >= PASS ? 'nominal' : fs >= WARN ? 'warning' : 'critical';
+  const tr  = del > 0.001 ? 'improving' : del < -0.001 ? 'declining' : 'stable';
+  const msg = `WALCHE system status. Final score ${fs.toFixed(3)}. System is ${st}. ` +
+              `Verdict: ${lr.verdict||'unknown'}. Score trend is ${tr}. ` +
+              `${lr.real_modules||0} modules operational.`;
+  showVoiceFeedback('', msg);
+}
 
-  document.getElementById('btn-refresh').addEventListener('click', () => {
-    countdown = REFRESH_SECS;
+function speakHelp() {
+  const msg = 'Available voice commands: status, score, verdict, refresh, ' +
+              'show core, show corpus, show healing, show loop, show meta, ' +
+              'show V.L.L., show council, close.';
+  showVoiceFeedback('', msg);
+}
+
+/* ══ Voice recognition ════════════════════════════════════════ */
+if (speechSupported) {
+  const SR  = window.SpeechRecognition || window.webkitSpeechRecognition;
+  recognition = new SR();
+  recognition.continuous    = false;
+  recognition.interimResults= false;
+  recognition.lang          = 'en-US';
+  recognition.maxAlternatives = 1;
+
+  recognition.onresult = event => {
+    const transcript = event.results[0][0].transcript.toLowerCase().trim();
+    $('voice-wave').style.display = 'none';
+    $('btn-voice').classList.remove('listening');
+    $('voice-btn-label').textContent = 'Voice';
+    $('mic-icon').style.display = '';
+    voiceActive = false;
+    handleVoiceCmd(transcript);
+  };
+  recognition.onerror = event => {
+    $('voice-wave').style.display  = 'none';
+    $('btn-voice').classList.remove('listening');
+    $('voice-btn-label').textContent = 'Voice';
+    $('mic-icon').style.display = '';
+    voiceActive = false;
+    if (event.error !== 'aborted') {
+      showVoiceFeedback('', 'Microphone error: ' + event.error + '.');
+    }
+  };
+  recognition.onend = () => {
+    if (voiceActive) {
+      $('voice-wave').style.display  = 'none';
+      $('btn-voice').classList.remove('listening');
+      $('voice-btn-label').textContent = 'Voice';
+      $('mic-icon').style.display = '';
+      voiceActive = false;
+    }
+  };
+} else {
+  const btn = $('btn-voice');
+  btn.classList.add('no-support');
+  btn.title = 'Voice commands require a modern Chromium browser (localhost or HTTPS)';
+}
+
+function startListening() {
+  if (!speechSupported || !recognition) return;
+  if (voiceActive) { recognition.stop(); return; }
+  voiceActive = true;
+  $('btn-voice').classList.add('listening');
+  $('voice-btn-label').textContent = 'Listening…';
+  $('mic-icon').style.display = '';
+  $('spk-icon').style.display = 'none';
+  $('voice-wave').style.display = 'flex';
+  $('voice-strip').classList.add('active');
+  $('voice-heard').textContent = '…';
+  $('voice-said').textContent  = '';
+  try { recognition.start(); } catch(e) { voiceActive = false; }
+}
+
+function handleVoiceCmd(cmd) {
+  $('voice-heard').textContent = cmd;
+
+  if (/refresh|update|reload/.test(cmd)) {
     fetchAndRender();
-  });
+    showVoiceFeedback(cmd, 'Refreshing WALCHE status now.');
+    return;
+  }
+  if (/^(system )?status$|health check|overview/.test(cmd)) {
+    speakStatus(); $('voice-heard').textContent = cmd; return;
+  }
+  if (/^(what.*)?score$|final score/.test(cmd)) {
+    if (!currentData?.last_run) { showVoiceFeedback(cmd,'No data available.'); return; }
+    const fs = parseFloat(currentData.last_run.final_score||0);
+    showVoiceFeedback(cmd, `Final score is ${fs.toFixed(3)}. Status: ${scoreLabel(fs)}.`);
+    return;
+  }
+  if (/verdict/.test(cmd)) {
+    if (!currentData?.last_run) { showVoiceFeedback(cmd,'No data available.'); return; }
+    showVoiceFeedback(cmd, `Verdict: ${currentData.last_run.verdict || 'unknown'}.`);
+    return;
+  }
+  if (/close|dismiss|hide|back/.test(cmd)) {
+    closeDetailPanel();
+    showVoiceFeedback(cmd, 'Panel closed.');
+    return;
+  }
+  if (/help|commands|what can/.test(cmd)) { speakHelp(); $('voice-heard').textContent = cmd; return; }
 
+  // Node show commands
+  const nodeMap = [
+    [/core|walche core/,                  'core'],
+    [/corpus|corpus integrity/,           'corpus'],
+    [/heal(ing)?|healing engine/,         'healing'],
+    [/loop|loop registry/,                'loop'],
+    [/meta|meta engine|bertha/,           'meta'],
+    [/vll|v\.l\.l|verification learning/, 'vll'],
+    [/council|grand council/,             'council'],
+    [/rubric/,    'mod-rubric'],
+    [/preingest|pre.ingest|ingest gate/,  'mod-preingest'],
+    [/pain|fmea/, 'mod-pain'],
+    [/guard/,     'mod-guard'],
+    [/provenance/,'mod-prov'],
+    [/cross|ensemble/,'mod-cross'],
+    [/c12|gate/,  'mod-c12'],
+  ];
+  for (const [re, nodeId] of nodeMap) {
+    if (re.test(cmd)) {
+      openDetailPanel(nodeId);
+      const info = NODE_INFO[nodeId] || { title: nodeId };
+      showVoiceFeedback(cmd, `Showing ${info.title}.`);
+      return;
+    }
+  }
+
+  showVoiceFeedback(cmd, `Command not recognized. Say help for available commands.`);
+}
+
+/* ══ API fetch + render ═══════════════════════════════════════ */
+async function fetchAndRender() {
+  const pill = $('api-pill');
+  pill.textContent = 'loading…';
+  pill.className   = 'pill';
+  try {
+    const r = await fetch('/api/status');
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const data = await r.json();
+
+    if (data.error) {
+      pill.textContent = 'no data';
+      pill.className   = 'pill warn';
+      console.warn('WALCHE status error:', data.error);
+      return;
+    }
+
+    currentData = data;
+    pill.textContent = 'live';
+    pill.className   = 'pill ok';
+
+    updateBottomBar(data);
+    updateDomainNodes(data.last_run);
+    updateVllNode(data.vll_state);
+    updateCouncilNode(data.council_decisions);
+    updateTimeline(data.score_trend || []);
+
+    // Core burst on successful load
+    particleBurst(700, 400, '#d4a017', 8);
+
+  } catch (err) {
+    pill.textContent = 'offline';
+    pill.className   = 'pill bad';
+    console.error('Fetch error:', err);
+  }
+}
+
+/* ══ Countdown + auto-refresh ════════════════════════════════ */
+let countdown = REFRESH_S;
+setInterval(() => {
+  countdown--;
+  if (countdown <= 0) { countdown = REFRESH_S; fetchAndRender(); }
+  $('refresh-pill').textContent = 'refresh in ' + countdown + 's';
+}, 1000);
+
+/* ══ Event listeners ══════════════════════════════════════════ */
+$('btn-refresh').addEventListener('click', () => {
+  countdown = REFRESH_S;
   fetchAndRender();
+});
+
+$('btn-voice').addEventListener('click', () => {
+  if ($('btn-voice').classList.contains('no-support')) return;
+  if (synth && synth.speaking) { synth.cancel(); return; }
+  startListening();
+});
+
+$('dp-close').addEventListener('click', closeDetailPanel);
+
+$('dp-speak').addEventListener('click', () => {
+  if (panelSpeakText) speak(panelSpeakText);
+});
+
+// Wire all SVG node groups
+$$('.node-group').forEach(g => {
+  g.addEventListener('click', () => openDetailPanel(g.dataset.node));
+  g.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') openDetailPanel(g.dataset.node);
+  });
+});
+
+// Keyboard shortcuts
+document.addEventListener('keydown', e => {
+  if (e.key === 'v' || e.key === 'V') { if (!e.ctrlKey && !e.metaKey) startListening(); }
+  if (e.key === 'r' || e.key === 'R') { if (!e.ctrlKey && !e.metaKey) { countdown=REFRESH_S; fetchAndRender(); } }
+  if (e.key === 'Escape') closeDetailPanel();
+});
+
+/* ══ Boot ═════════════════════════════════════════════════════ */
+fetchAndRender();
+
 })();
 </script>
 </body>

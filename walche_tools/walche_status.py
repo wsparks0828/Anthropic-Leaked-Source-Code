@@ -244,7 +244,7 @@ def main() -> None:
     if args.json:
         status = {
             "last_run":         last_log,
-            "corpus_kb_stats":  kb.get("stats") if kb else None,
+            "corpus_kb_stats":  {**(kb.get("stats") or {}), "generated_at": kb.get("generated_at")} if kb else None,
             "council_decisions":council,
             "vll_state":        vll,
             "score_trend":      trend,
