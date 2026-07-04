@@ -391,6 +391,7 @@ def run_ingest(
     output_path: str,
     dry_run: bool = False,
     verbose: bool = False,
+    force: bool = False,
 ) -> IngestReport:
     root = Path(scan_root).resolve()
     out  = Path(output_path)
@@ -482,7 +483,32 @@ def run_ingest(
         print("        DRY RUN — no files written")
         print(f"        Would write {len(passed)} entries to {out}")
     else:
+        # Merge with any existing KB (append, don't replace) — a bare --scan run
+        # extracts 0 entries whenever the tree has no matching .py files, and a
+        # full-replace write would silently wipe a populated KB in that case.
+        existing_entries: list[dict] = []
+        if out.exists():
+            try:
+                existing_kb = json.loads(out.read_text(encoding="utf-8"))
+                existing_entries = existing_kb.get("entries", [])
+                print(f"        Merging with existing KB ({len(existing_entries)} existing entries)")
+            except Exception:
+                print(f"        [WARN] Existing KB at {out} could not be read — "
+                      f"treating as empty (original file left untouched until write)")
+
+        if not passed and existing_entries and not force:
+            print(f"        [ABORT] This scan extracted 0 entries but {out} already "
+                  f"holds {len(existing_entries)} — refusing to overwrite. "
+                  f"Pass --force to write anyway.")
+            report.duration_seconds = time.time() - t_start
+            return report
+
         out.parent.mkdir(parents=True, exist_ok=True)
+
+        # New entries win on id collision (they reflect the current file content).
+        by_id: dict[str, dict] = {e.get("id", ""): e for e in existing_entries}
+        by_id.update({e.id: e.to_dict() for e in passed})
+        deduped = list(by_id.values())
 
         kb = {
             "version": INGEST_VERSION,
@@ -495,15 +521,16 @@ def run_ingest(
                 "entries_rejected": report.entries_rejected,
                 "total_tokens": report.total_tokens,
                 "predicted_integrity_score": report.predicted_integrity_score,
+                "total_entries_in_kb": len(deduped),
             },
-            "entries": [e.to_dict() for e in passed],
+            "entries": deduped,
         }
 
         _tmp = out.with_suffix(".tmp")
         _tmp.write_text(json.dumps(kb, indent=2, ensure_ascii=False), encoding="utf-8")
         os.replace(_tmp, out)
         print(f"        Written: {out}  ({out.stat().st_size:,} bytes)")
-        print(f"        Entries: {len(passed)}")
+        print(f"        Entries this scan: {len(passed)}  |  Total entries in KB: {len(deduped)}")
 
     report.duration_seconds = time.time() - t_start
 
@@ -1021,20 +1048,24 @@ def run_log_ingest(
                 existing_kb = json.loads(out.read_text(encoding="utf-8"))
                 existing_entries = existing_kb.get("entries", [])
                 print(f"        Merging with existing KB ({len(existing_entries)} existing entries)")
-            except Exception:
-                pass
+            except Exception as e:
+                corrupt_backup = out.with_name(out.name + f".corrupt-{int(time.time())}")
+                try:
+                    out.rename(corrupt_backup)
+                    print(f"        [WARN] Existing KB at {out} is corrupt ({e}) — "
+                          f"moved to {corrupt_backup.name}, starting fresh")
+                except Exception:
+                    print(f"        [WARN] Existing KB at {out} is corrupt ({e}) and "
+                          f"could not be backed up — starting fresh (original left in place)")
 
         out.parent.mkdir(parents=True, exist_ok=True)
-        all_entry_dicts = existing_entries + [e.to_dict() for e in passed]
 
-        # Deduplicate by id
-        seen_ids: set[str] = set()
-        deduped: list[dict] = []
-        for ed in all_entry_dicts:
-            eid = ed.get("id", "")
-            if eid not in seen_ids:
-                seen_ids.add(eid)
-                deduped.append(ed)
+        # New entries win on id collision (they reflect the current log content;
+        # keeping the first-seen/stale copy meant a re-ingested, updated log
+        # file never refreshed anything already in the KB).
+        by_id: dict[str, dict] = {ed.get("id", ""): ed for ed in existing_entries}
+        by_id.update({e.to_dict()["id"]: e.to_dict() for e in passed})
+        deduped = list(by_id.values())
 
         kb = {
             "version":      INGEST_VERSION,
@@ -1112,6 +1143,8 @@ def main() -> None:
     parser.add_argument("--platform", metavar="PLATFORM", help="Platform hint for log ingestion (optional)")
     parser.add_argument("--dry-run",  action="store_true", help="Parse and gate-check without writing files")
     parser.add_argument("--verbose",  action="store_true", help="Show per-file extraction details")
+    parser.add_argument("--force",    action="store_true",
+                        help="Allow a 0-entry scan to overwrite a populated knowledge base")
 
     args = parser.parse_args()
 
@@ -1135,6 +1168,7 @@ def main() -> None:
             output_path=args.output,
             dry_run=args.dry_run,
             verbose=args.verbose,
+            force=args.force,
         )
 
     if args.logs:
