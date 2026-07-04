@@ -575,7 +575,7 @@ button{font-family:inherit;cursor:pointer;border:0;background:none;}
 'use strict';
 
 /* ══ Constants ════════════════════════════════════════════════ */
-const BASELINE  = 0.9133;
+let BASELINE    = 0.9133; // overridden from the API's `baseline` field once fetched
 const PASS      = 0.85;
 const WARN      = 0.70;
 const REFRESH_S = 30;
@@ -601,7 +601,11 @@ function esc(s) {
 function timeAgo(ts) {
   if (!ts) return '';
   try {
-    const s = Math.floor((Date.now() - new Date(ts.endsWith('Z') ? ts : ts + 'Z')) / 1000);
+    // The backend writes datetime.now(timezone.utc).isoformat(), which ends
+    // in "+00:00", not "Z" — appending "Z" onto that produced "...+00:00Z",
+    // an invalid Date that made this always return '' for real server data.
+    const hasTz = /(?:Z|[+-]\d{2}:?\d{2})$/.test(ts);
+    const s = Math.floor((Date.now() - new Date(hasTz ? ts : ts + 'Z')) / 1000);
     if (s < 0 || isNaN(s)) return '';
     if (s < 60)    return s + 's ago';
     if (s < 3600)  return Math.floor(s/60) + 'm ago';
@@ -936,8 +940,9 @@ function updateBottomBar(data) {
 
   // Corpus entries + integrity
   if (kb) {
-    const n    = kb.total_entries_in_kb || kb.entries_passed || 0;
+    const n    = Number(kb.total_entries_in_kb ?? kb.entries_passed ?? 0) || 0;
     const intg = parseFloat(kb.predicted_integrity_score || 0);
+    $('stat-corpus').style.color = '';
     $('stat-corpus').textContent = n.toLocaleString();
     const integEl = $('stat-integ');
     integEl.textContent = intg.toFixed(3);
@@ -1055,12 +1060,12 @@ function openDetailPanel(nodeId) {
   if (nodeId === 'corpus' && data && data.corpus_kb_stats) {
     const kb   = data.corpus_kb_stats;
     const intg = parseFloat(kb.predicted_integrity_score || 0);
-    const n    = kb.total_entries_in_kb || kb.entries_passed || 0;
+    const n    = Number(kb.total_entries_in_kb ?? kb.entries_passed ?? 0) || 0;
     const gap  = PASS - intg;
     html += `<div class="dp-section"><h4>Knowledge Base</h4>
       <dl class="dp-kv">
         <dt>Entries</dt><dd>${n.toLocaleString()}</dd>
-        <dt>Tokens</dt><dd>${(kb.total_tokens||0).toLocaleString()}</dd>
+        <dt>Tokens</dt><dd>${(Number(kb.total_tokens) || 0).toLocaleString()}</dd>
         <dt>Integrity</dt><dd style="color:${scoreColor(intg)}">${intg.toFixed(4)}</dd>
         ${kb.generated_at ? `<dt>Generated</dt><dd style="font-size:10px">${esc(kb.generated_at.slice(0,10))}</dd>` : ''}
       </dl>
@@ -1405,7 +1410,20 @@ async function fetchAndRender() {
       pill.textContent = 'no data';
       pill.className   = 'pill warn';
       console.warn('WALCHE status error:', data.error);
+      // Don't leave stale (possibly hours-old) values on screen with no
+      // indication they're unknown.
+      const integEl = $('stat-integ');
+      integEl.textContent = '—';
+      integEl.style.color = '';
+      const gapEl = $('gap-label');
+      if (gapEl) gapEl.textContent = '—';
       return;
+    }
+
+    if (typeof data.baseline === 'number') {
+      BASELINE = data.baseline;
+      const baselineEl = $('stat-baseline');
+      if (baselineEl) baselineEl.textContent = BASELINE.toFixed(4);
     }
 
     currentData = data;
