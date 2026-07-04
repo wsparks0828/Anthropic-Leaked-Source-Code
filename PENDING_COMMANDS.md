@@ -11,8 +11,7 @@
 # Download the patch script
 Invoke-WebRequest `
   -Uri "https://raw.githubusercontent.com/wsparks0828/Anthropic-Leaked-Source-Code/claude/session-01ht1jmqadwsdphy19maevvl-7qlsw7/walche_tools/patch_run_system.py" `
-  -OutFile "walche_tools\patch_run_system.py" `
-  -SkipCertificateCheck
+  -OutFile "walche_tools\patch_run_system.py"
 
 # Run it once — patches run_system.py in place, backs up original as run_system.py.bak
 python walche_tools\patch_run_system.py
@@ -33,8 +32,7 @@ After patching, `--phase full` also includes the heal phase automatically.
 # Download updated walche_demo.py (HealingProposal serialization fix)
 Invoke-WebRequest `
   -Uri "https://raw.githubusercontent.com/wsparks0828/Anthropic-Leaked-Source-Code/claude/session-01ht1jmqadwsdphy19maevvl-7qlsw7/walche_tools/walche_demo.py" `
-  -OutFile "walche_demo.py" `
-  -SkipCertificateCheck
+  -OutFile "walche_demo.py"
 
 # Run demo (should show readable proposals, not HealingProposal objects)
 python walche_demo.py
@@ -48,8 +46,7 @@ python walche_demo.py
 # Download council
 Invoke-WebRequest `
   -Uri "https://raw.githubusercontent.com/wsparks0828/Anthropic-Leaked-Source-Code/claude/session-01ht1jmqadwsdphy19maevvl-7qlsw7/walche_tools/council_of_9.py" `
-  -OutFile "walche_tools\council_of_9.py" `
-  -SkipCertificateCheck
+  -OutFile "walche_tools\council_of_9.py"
 
 # List all 47 judges
 python walche_tools\council_of_9.py --list-judges
@@ -72,8 +69,7 @@ python walche_tools\council_of_9.py --proposal "Disable prompt caching in test e
 # Download corpus ingestion tool
 Invoke-WebRequest `
   -Uri "https://raw.githubusercontent.com/wsparks0828/Anthropic-Leaked-Source-Code/claude/session-01ht1jmqadwsdphy19maevvl-7qlsw7/walche_tools/corpus_ingest.py" `
-  -OutFile "walche_tools\corpus_ingest.py" `
-  -SkipCertificateCheck
+  -OutFile "walche_tools\corpus_ingest.py"
 
 # --- OPTION A: Scan WALCHE Python source ---
 python walche_tools\corpus_ingest.py --scan . --output corpus\walche_kb.json --dry-run
@@ -630,20 +626,17 @@ $base   = "https://raw.githubusercontent.com/wsparks0828/Anthropic-Leaked-Source
 # HTTP server (serves dashboard + API endpoints)
 Invoke-WebRequest `
   -Uri "$base/walche_server.py" `
-  -OutFile "walche_tools\walche_server.py" `
-  -SkipCertificateCheck
+  -OutFile "walche_tools\walche_server.py"
 
 # Dashboard HTML (space/universe UI — voice, animations, live data)
 Invoke-WebRequest `
   -Uri "$base/walche_dashboard.html" `
-  -OutFile "walche_tools\walche_dashboard.html" `
-  -SkipCertificateCheck
+  -OutFile "walche_tools\walche_dashboard.html"
 
 # Status script — PATCHED this session (adds generated_at to JSON output)
 Invoke-WebRequest `
   -Uri "$base/walche_status.py" `
-  -OutFile "walche_tools\walche_status.py" `
-  -SkipCertificateCheck
+  -OutFile "walche_tools\walche_status.py"
 
 # ── Step 2: Start the server ──────────────────────────────────────────────────
 python walche_tools\walche_server.py

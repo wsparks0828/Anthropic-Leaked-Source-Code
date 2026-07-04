@@ -137,11 +137,14 @@ class WalcheHandler(BaseHTTPRequestHandler):
     # ── response helpers ─────────────────────────────────────────────────────
 
     def _send_json(self, data, status: int = 200) -> None:
+        # No CORS header: the dashboard is same-origin with this server (it's
+        # served from the same host:port), so it never needed one — a
+        # wildcard CORS header only ever helped an unrelated site open in the
+        # operator's browser read local WALCHE state while this server runs.
         body = json.dumps(data, indent=2, default=str).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
-        self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
         self.wfile.write(body)
 
@@ -189,8 +192,7 @@ class WalcheHandler(BaseHTTPRequestHandler):
 
     def do_OPTIONS(self) -> None:
         self.send_response(200)
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
+        self.send_header("Allow", "GET, OPTIONS")
         self.end_headers()
 
 
