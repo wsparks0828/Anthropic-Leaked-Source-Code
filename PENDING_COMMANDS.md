@@ -184,6 +184,9 @@ if (!(Test-Path "datasets")) {
 if (!(Test-Path "lm-evaluation-harness")) {
     git clone --depth 1 https://github.com/EleutherAI/lm-evaluation-harness lm-evaluation-harness
 }
+if (!(Test-Path "Awesome-Memory-for-Agents")) {
+    git clone --depth 1 https://github.com/TsinghuaC3I/Awesome-Memory-for-Agents Awesome-Memory-for-Agents
+}
 ```
 
 **Estimated disk:** CS repos ~1.6 GB (linux dominant). AI repos ~200-350 MB. Run with stable internet.  
@@ -214,6 +217,35 @@ Expand-Archive -Path usc28.xml.zip -DestinationPath usc28_xml -Force
 
 Write-Host "Done. Run corpus_ingest.py --logs Legal_Terminology --output corpus\legal_kb.json next."
 ```
+
+---
+
+## QUEUE 4E — Download cognitive architecture papers (batch 20)
+
+> **Genre:** AI_Fundamentals_to_Advanced_Practices_Repos_Issues_Testing  
+> Direct academic validation for WALCHE MetaEngine, VLL, and memory layer design.
+
+```powershell
+$cogDir = "C:\Users\wspar\OneDrive\Microsoft Copilot Chat Files\Desktop\OSMODA\AI_Fundamentals_to_Advanced_Practices_Repos_Issues_Testing\cognitive_architectures"
+New-Item -ItemType Directory -Path $cogDir -Force | Out-Null
+
+# Kotseruba & Tsotsos 2018 — 84 cognitive architectures survey (maps to WALCHE multi-component design)
+Invoke-WebRequest -Uri "https://arxiv.org/pdf/1610.08602" -OutFile "$cogDir\kotseruba_2018_cognitive_arch_survey_arXiv1610.08602.pdf"
+
+# MemGPT — tiered memory hierarchy (maps to WALCHE corpus KB tiers)
+Invoke-WebRequest -Uri "https://arxiv.org/pdf/2310.08560" -OutFile "$cogDir\memgpt_packer_2023_arXiv2310.08560.pdf"
+
+# Reflexion — verbal RL via self-reflection (= WALCHE VLL mechanism)
+Invoke-WebRequest -Uri "https://arxiv.org/pdf/2303.11366" -OutFile "$cogDir\reflexion_shinn_2023_arXiv2303.11366.pdf"
+
+# Awesome-Memory-for-Agents repo (already in Queue 4C — run that first)
+# git clone --depth 1 https://github.com/TsinghuaC3I/Awesome-Memory-for-Agents
+
+Write-Host "Cognitive arch papers downloaded to $cogDir"
+Write-Host "Then run: python walche_tools\corpus_ingest.py --logs `"$cogDir`" --output corpus\ai_kb.json"
+```
+
+**Note on Laird 2012 Soar book and Langley 2009:** These are print/licensed PDF — obtain through institutional access, library, or publisher (MIT Press for Soar). Laird et al. 2017 (AI Magazine) available via AAAI Digital Library (https://ojs.aaai.org/index.php/aimagazine/article/view/2744).
 
 ---
 
@@ -256,6 +288,7 @@ python run_system.py --phase full
 | 4B — Feed corpus (OSMODA) | PENDING | Exact OSMODA paths documented above — HIGH PRIORITY |
 | 4C — Clone repos (CS+AI) | PENDING | linux, llvm, riscv-isa-manual, transformers, datasets, lm-eval-harness — run before 4B |
 | 4D — US Code XML (Legal) | PENDING | usc26.xml.zip + usc28.xml.zip from uscode.house.gov PL 119/99 |
+| 4E — Cognitive arch PDFs | PENDING | Kotseruba survey + MemGPT + Reflexion arXiv PDFs → cognitive_architectures/ subfolder |
 | 5 — Explore provenance | PENDING | Run after Queue 1 generates new log |
 | 6 — Full pipeline | PENDING | Run last, after all above complete |
 
