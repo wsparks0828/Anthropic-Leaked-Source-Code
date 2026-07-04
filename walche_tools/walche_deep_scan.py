@@ -1,7 +1,8 @@
-"""tools/walche_deep_scan.py -- WALCHE Full Platform Scan
+"""walche_tools/walche_deep_scan.py -- WALCHE Full Platform Scan
 Covers: syntax, imports, interfaces, AST bug patterns, loop registry,
 module connectivity, config, tests, dead code, circular imports, EPM contamination.
-Run from WALCHE root: venv\Scripts\python tools\walche_deep_scan.py
+Run from WALCHE root: python walche_tools/walche_deep_scan.py
+(Windows venv: venv\\Scripts\\python walche_tools\\walche_deep_scan.py)
 """
 import ast
 import importlib
@@ -10,19 +11,18 @@ import json
 import py_compile
 import subprocess
 import sys
-import textwrap
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple
 
-ROOT = Path(__file__).parent.parent
+ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-EXCLUDE_DIRS = {"venv", "node_modules", ".git", "__pycache__", "site-packages",
-                "wachle-dashboard", "dist", ".pytest_cache"}
+EXCLUDE_DIRS = {"venv", ".venv", "node_modules", ".git", "__pycache__", "site-packages",
+                "wachle-dashboard", "walche-dashboard", "dist", ".pytest_cache"}
 
 # ─── Data ────────────────────────────────────────────────────────────────────
 
@@ -255,7 +255,7 @@ def scan_ast_bugs() -> List[Issue]:
 CONTAM_PATTERNS = [
     (r"EPM-STARK",   "CRITICAL", "EPM-STARK reference inside WALCHE — violates standalone constraint"),
     (r"WOM-STARK",   "CRITICAL", "WOM-STARK reference inside WALCHE — violates standalone constraint"),
-    (r"C:\\EPM",     "CRITICAL", "Hardcoded EPM path inside WALCHE"),
+    (r"C:\EPM",      "CRITICAL", "Hardcoded EPM path inside WALCHE"),
     (r"C:/EPM",      "CRITICAL", "Hardcoded EPM path inside WALCHE"),
     (r"estc2_live_apply", "HIGH", "ESTC2 apply script referenced inside WALCHE"),
     (r"from wom",    "HIGH",     "WOM import inside WALCHE"),
@@ -263,8 +263,19 @@ CONTAM_PATTERNS = [
 ]
 
 def scan_contamination() -> List[Issue]:
+    # Patterns above are matched as literal substrings (not regexes) — note
+    # r"C:\EPM" is a SINGLE backslash. A double-backslash literal here would
+    # never match real source containing a single-backslash Windows path
+    # (e.g. Path(r"C:\EPM-STARK")), silently blinding this check to its
+    # primary target.
     issues = []
+    self_path = Path(__file__).resolve()
     for f in _py_files():
+        if f.resolve() == self_path:
+            # This scanner's own CONTAM_PATTERNS table and docstrings contain
+            # the very strings it's looking for, guaranteeing false CRITICAL
+            # hits against itself on every run.
+            continue
         try:
             src = f.read_text(encoding="utf-8", errors="ignore")
         except Exception:
@@ -454,31 +465,49 @@ def scan_orphan_scripts() -> List[Issue]:
 
 # ─── S11: Self-Tests ─────────────────────────────────────────────────────────
 
+MAX_TEST_FILES = 10
+
 def run_tests() -> Tuple[List[Issue], Dict]:
     issues = []
     stats = {"run": 0, "passed": 0, "failed": 0}
     test_dirs = [ROOT / "tests", ROOT / "test"]
-    test_files = []
+    all_test_files = []
     for td in test_dirs:
         if td.exists():
-            test_files.extend(list(td.glob("test_*.py"))[:10])
+            # rglob (not glob) so nested test dirs match what S9's discovery
+            # (scan_test_gaps, which uses rglob) considers "covered".
+            all_test_files.extend(sorted(td.rglob("test_*.py")))
+
+    test_files = all_test_files[:MAX_TEST_FILES]
+    if len(all_test_files) > MAX_TEST_FILES:
+        issues.append(Issue(
+            "TEST", "LOW", "tests/", 0,
+            f"{len(all_test_files) - MAX_TEST_FILES} test file(s) beyond the "
+            f"first {MAX_TEST_FILES} were NOT run by this scan",
+            "Run the full suite separately (e.g. `pytest tests/`) for complete coverage",
+        ))
 
     for tf in test_files:
         stats["run"] += 1
+        proc = None
         try:
-            r = subprocess.run(
+            proc = subprocess.Popen(
                 [sys.executable, "-m", "pytest", str(tf), "-x", "-q", "--tb=short"],
-                capture_output=True, text=True, timeout=45, cwd=str(ROOT)
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, cwd=str(ROOT),
             )
-            if r.returncode == 0:
+            stdout, stderr = proc.communicate(timeout=45)
+            if proc.returncode == 0:
                 stats["passed"] += 1
             else:
                 stats["failed"] += 1
-                first_failure = r.stdout[:300] + r.stderr[:200]
+                first_failure = stdout[:300] + stderr[:200]
                 issues.append(Issue("TEST", "HIGH", _rel(tf), 0,
                                     f"Test failures: {first_failure.strip()[:250]}",
                                     "Fix failing tests before deployment"))
         except subprocess.TimeoutExpired:
+            if proc is not None:
+                proc.kill()
+                proc.communicate()
             stats["failed"] += 1
             issues.append(Issue("TEST", "MEDIUM", _rel(tf), 0, "Test timed out (>45s)", ""))
         except Exception as e:
@@ -507,6 +536,19 @@ def main():
     print(f"{'='*70}\n")
 
     all_issues: List[Issue] = []
+
+    if not (ROOT / "core").is_dir():
+        print(f"  [CRITICAL] {ROOT}/core/ does not exist — every core.* import "
+              f"check below will fail for this reason, not because of a bug "
+              f"in any individual module.\n")
+        all_issues.append(Issue(
+            "PREFLIGHT", "CRITICAL", "core/", 0,
+            f"{ROOT}/core/ directory is missing — all core.* module checks "
+            f"(S2, S3, S6, S8, S9) will report failures with this as the root "
+            f"cause, not a defect in any individual module",
+            "Copy the WALCHE core/ package into this repo, or run this scan "
+            "against the WALCHE root that actually contains it",
+        ))
 
     steps = [
         ("S1  Syntax Check",          scan_syntax),
