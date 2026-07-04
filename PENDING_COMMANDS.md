@@ -509,6 +509,96 @@ Write-Host "Z3 QUICK WIN: pip install z3-solver  (add runtime invariant checks t
 
 ---
 
+## QUEUE 4K — Download AFC + data poisoning defenses + AI safety papers + tools
+
+> **Focus:** Dismantling corruption, poisons, misinfo, and deceptive/adversarial entities.  
+> **HIGHEST PRIORITY items:** PoisonedRAG arXiv:2402.07867 (RAG KB poisoning — direct WALCHE threat)  
+> and Hubinger arXiv:2401.05566 (sleeper agents — deceptive alignment in WALCHE VLL).  
+> **Architecture upgrade:** Lightman PRM (arXiv:2305.20050) → replaces binary C12 gate with step-scored verification chain.
+
+```powershell
+$afcDir = "C:\Users\wspar\OneDrive\Microsoft Copilot Chat Files\Desktop\OSMODA\AI_Fundamentals_to_Advanced_Practices_Repos_Issues_Testing\fact_checking_afc"
+$poisonDir = "C:\Users\wspar\OneDrive\Microsoft Copilot Chat Files\Desktop\OSMODA\AI_Fundamentals_to_Advanced_Practices_Repos_Issues_Testing\data_poisoning_defenses"
+$safetyDir = "C:\Users\wspar\OneDrive\Microsoft Copilot Chat Files\Desktop\OSMODA\AI_Fundamentals_to_Advanced_Practices_Repos_Issues_Testing\ai_safety_alignment"
+$verifyDir = "$afcDir\reasoning_verifiers"
+
+foreach ($d in @($afcDir,$poisonDir,$safetyDir,$verifyDir,"$afcDir\claimbuster","$afcDir\botometer")) {
+    New-Item -ItemType Directory -Path $d -Force | Out-Null
+}
+
+# --- AFC core papers ---
+# Guo et al. 2022 TACL — ACL Anthology (open access)
+Invoke-WebRequest -Uri "https://aclanthology.org/2022.tacl-1.11.pdf" -OutFile "$afcDir\guo_2022_afc_survey_TACL.pdf"
+
+# Cartus/Automated-Fact-Checking-Resources (curated paper index)
+if (!(Test-Path "$afcDir\Automated-Fact-Checking-Resources")) {
+    git clone --depth 1 https://github.com/Cartus/Automated-Fact-Checking-Resources "$afcDir\Automated-Fact-Checking-Resources"
+}
+
+# VeriTaS 2026 — verify arXiv ID at arxiv.org first
+# Search: arxiv.org "VeriTaS multimodal fact-checking 2026"
+# Then: Invoke-WebRequest -Uri "https://arxiv.org/pdf/<ID>" -OutFile "$afcDir\veritas_2026_afc_benchmark.pdf"
+
+# --- PRIORITY 1: Data poisoning / RAG poisoning ---
+# PoisonedRAG (arXiv:2402.07867) — RAG knowledge base poisoning and defenses
+Invoke-WebRequest -Uri "https://arxiv.org/pdf/2402.07867" -OutFile "$poisonDir\poisonedRAG_2024_arXiv2402.07867.pdf"
+
+# Goldblum et al. 2023 TPAMI dataset security survey (arXiv:2012.10544)
+Invoke-WebRequest -Uri "https://arxiv.org/pdf/2012.10544" -OutFile "$poisonDir\goldblum_2023_dataset_security_arXiv2012.10544.pdf"
+
+# Chen et al. 2019 activation clustering backdoor detection (arXiv:1811.03728)
+Invoke-WebRequest -Uri "https://arxiv.org/pdf/1811.03728" -OutFile "$poisonDir\chen_2019_activation_clustering_arXiv1811.03728.pdf"
+
+# --- PRIORITY 1: AI safety / deceptive alignment ---
+# Hubinger et al. 2024 — Sleeper Agents (arXiv:2401.05566)
+Invoke-WebRequest -Uri "https://arxiv.org/pdf/2401.05566" -OutFile "$safetyDir\hubinger_2024_sleeper_agents_arXiv2401.05566.pdf"
+
+# Hubinger et al. 2019 — Risks from Learned Optimization (arXiv:1906.01820)
+Invoke-WebRequest -Uri "https://arxiv.org/pdf/1906.01820" -OutFile "$safetyDir\hubinger_2019_risks_learned_optimization_arXiv1906.01820.pdf"
+
+# LLM Factuality papers
+# Min et al. 2023 FActScoring (arXiv:2305.14251)
+Invoke-WebRequest -Uri "https://arxiv.org/pdf/2305.14251" -OutFile "$safetyDir\min_2023_factscore_arXiv2305.14251.pdf"
+
+# Augenstein et al. 2023 Factuality Challenges (arXiv:2310.05189)
+Invoke-WebRequest -Uri "https://arxiv.org/pdf/2310.05189" -OutFile "$safetyDir\augenstein_2023_factuality_challenges_arXiv2310.05189.pdf"
+
+# Burns et al. 2022 CCS / Eliciting Latent Knowledge (arXiv:2212.03827)
+Invoke-WebRequest -Uri "https://arxiv.org/pdf/2212.03827" -OutFile "$safetyDir\burns_2022_ccs_latent_knowledge_arXiv2212.03827.pdf"
+
+# Constitutional AI (arXiv:2212.08073)
+Invoke-WebRequest -Uri "https://arxiv.org/pdf/2212.08073" -OutFile "$safetyDir\bai_2022_constitutional_ai_arXiv2212.08073.pdf"
+
+# --- Reasoning-enhanced verifiers ---
+# Chain-of-Thought (arXiv:2201.11903)
+Invoke-WebRequest -Uri "https://arxiv.org/pdf/2201.11903" -OutFile "$verifyDir\wei_2022_cot_arXiv2201.11903.pdf"
+
+# Lightman et al. 2023 PRM / Let's Verify Step by Step (arXiv:2305.20050)
+Invoke-WebRequest -Uri "https://arxiv.org/pdf/2305.20050" -OutFile "$verifyDir\lightman_2023_prm_lets_verify_arXiv2305.20050.pdf"
+
+# Snell et al. 2024 inference scaling (arXiv:2408.03314)
+Invoke-WebRequest -Uri "https://arxiv.org/pdf/2408.03314" -OutFile "$verifyDir\snell_2024_inference_scaling_arXiv2408.03314.pdf"
+
+# --- Tool docs (save from browser as .md) ---
+# ClaimBuster API: https://idir.uta.edu/claimbuster/api/ → $afcDir\claimbuster\claimbuster_api_docs.md
+# Botometer API: https://botometer.osome.iu.edu/ → $afcDir\botometer\botometer_api_docs.md
+
+# --- Ingest all downloaded files ---
+python walche_tools\corpus_ingest.py --logs "$afcDir" --output corpus\afc_kb.json
+python walche_tools\corpus_ingest.py --logs "$poisonDir" --output corpus\afc_kb.json
+python walche_tools\corpus_ingest.py --logs "$safetyDir" --output corpus\afc_kb.json
+python walche_tools\corpus_ingest.py --logs "$verifyDir" --output corpus\afc_kb.json
+
+Write-Host "AFC + poisoning defense + safety papers ready."
+Write-Host "Next: Run walche_demo.py to check corpus.integrity improvement."
+```
+
+**Architecture upgrade note (no download needed — implement now):**
+- Replace binary `rubric_ok` / `risk_ok` flags in C12 gate with **PRM-style step scores** (Lightman 2023): each verification step (claim extraction → evidence retrieval → verdict → confidence) gets an independent score; final judgment = harmonic mean of step scores.
+- Add **ClaimBuster pre-filter** as first stage of `corpus_ingest.py`: items scoring below CFS threshold are tagged `status: non_factual_skip` and excluded from CEVIP (saves tokens, improves corpus.integrity baseline).
+
+---
+
 ## QUEUE 5 — Explore provenance log
 
 ```powershell
@@ -554,6 +644,7 @@ python run_system.py --phase full
 | 4H — TDL papers + libs | PENDING | Zia arXiv:2302.03836, Hensel Frontiers 2021; clone giotto-tda, TopoModelX, TopoNetX |
 | 4I — Loop Engineering | PENDING | ReAct arXiv:2210.03629 + 5 blog articles (save as .md) + clone LangGraph/AutoGen/CrewAI/OpenAI-Agents |
 | 4J — Formal verification + RSI | PENDING | arXiv:2604.22601 (LLM+Dafny) HIGHEST PRIORITY; clone Dafny/TLA+/Lean4/Coq/Z3/Quint; pip install z3-solver quick win |
+| 4K — AFC + poisoning + safety | PENDING | PoisonedRAG arXiv:2402.07867 + Hubinger arXiv:2401.05566 PRIORITY 1; FActScore/PRM/CoT papers; ClaimBuster+Botometer tool docs |
 | 5 — Explore provenance | PENDING | Run after Queue 1 generates new log |
 | 6 — Full pipeline | PENDING | Run last, after all above complete |
 
