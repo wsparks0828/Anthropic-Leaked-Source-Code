@@ -435,6 +435,80 @@ Write-Host "Run: python walche_tools\corpus_ingest.py --scan `"$implDir`" --outp
 
 ---
 
+## QUEUE 4J — Download formal verification tools + neurotech reviews + RSI safeguard papers
+
+> **Clusters:** Formal verification (Dafny/TLA+/Lean4/Z3), neurotech AI reviews, RSI safeguards, neuromorphic, model checking.  
+> **HIGHEST PRIORITY item:** arXiv:2604.22601 (LLM+Dafny pipeline — direct WALCHE code verification path).  
+> **LOWEST FRICTION item:** Z3 Python API — add runtime invariant checks to WALCHE loops with `pip install z3-solver`.
+
+```powershell
+$fvDir = "C:\Users\wspar\OneDrive\Microsoft Copilot Chat Files\Desktop\OSMODA\AI_Fundamentals_to_Advanced_Practices_Repos_Issues_Testing\formal_verification"
+$mcDir = "$fvDir\model_checking"
+$tpDir = "$fvDir\theorem_provers"
+$valDir = "$fvDir\verified_agent_loops"
+$rsiDir = "C:\Users\wspar\OneDrive\Microsoft Copilot Chat Files\Desktop\OSMODA\AI_Fundamentals_to_Advanced_Practices_Repos_Issues_Testing\recursive_self_improvement"
+$neuroDir = "C:\Users\wspar\OneDrive\Microsoft Copilot Chat Files\Desktop\OSMODA\AI_Fundamentals_to_Advanced_Practices_Repos_Issues_Testing\neurotech_cognitive_enhancement"
+$morphDir = "C:\Users\wspar\OneDrive\Microsoft Copilot Chat Files\Desktop\OSMODA\AI_Fundamentals_to_Advanced_Practices_Repos_Issues_Testing\neuromorphic_computing"
+
+foreach ($d in @($fvDir,$mcDir,$tpDir,$valDir,$rsiDir,$neuroDir,$morphDir)) {
+    New-Item -ItemType Directory -Path $d -Force | Out-Null
+}
+
+# --- PRIORITY 1: LLM + Dafny verified code pipeline (arXiv:2604.22601) ---
+# VERIFY arXiv ID at https://arxiv.org/abs/2604.22601 before downloading
+Invoke-WebRequest -Uri "https://arxiv.org/pdf/2604.22601" -OutFile "$fvDir\llm_dafny_verified_code_arXiv2604.22601.pdf"
+
+# --- Clone formal verification tool repos ---
+if (!(Test-Path "$fvDir\dafny")) {
+    git clone --depth 1 https://github.com/dafny-lang/dafny "$fvDir\dafny"
+}
+if (!(Test-Path "$fvDir\tlaplus")) {
+    git clone --depth 1 https://github.com/tlaplus/tlaplus "$fvDir\tlaplus"
+}
+if (!(Test-Path "$tpDir\lean4")) {
+    git clone --depth 1 https://github.com/leanprover/lean4 "$tpDir\lean4"
+}
+if (!(Test-Path "$tpDir\coq")) {
+    git clone --depth 1 https://github.com/coq/coq "$tpDir\coq"
+}
+
+# --- Clone model checking + SMT tools ---
+if (!(Test-Path "$mcDir\z3")) {
+    git clone --depth 1 https://github.com/Z3Prover/z3 "$mcDir\z3"
+}
+if (!(Test-Path "$mcDir\quint")) {
+    git clone --depth 1 https://github.com/informalsystems/quint "$mcDir\quint"
+}
+if (!(Test-Path "$mcDir\hypothesis")) {
+    git clone --depth 1 https://github.com/HypothesisWorks/hypothesis "$mcDir\hypothesis"
+}
+
+# --- awesome-formal-verification ---
+# Search GitHub for most maintained 'awesome-formal-verification' repo
+# Example (verify repo is actively maintained first):
+# git clone --depth 1 https://github.com/johnyf/tool_lists "$fvDir\awesome-formal-verification"
+
+# --- Neurotech articles — save as .md from browser ---
+# ricopediatrics.com AI brain enhancement review 2025 → $neuroDir\ricopediatrics_2025_ai_brain_enhancement.md
+# Baker Institute Brain Capital → $neuroDir\baker_institute_brain_capital.md
+# PMC searches → download open-access PDFs to $neuroDir\
+
+# --- RSI safeguard papers — search Google Scholar / arXiv ---
+# Schmidhuber 2010 'Formal theory of creativity' → $rsiDir\
+# Yampolskiy 2020 'Unpredictability of AI' → $rsiDir\
+# Omohundro 2008 'Basic AI Drives' → $rsiDir\
+# arXiv 'recursive self-improvement safety bounds 2024' → $rsiDir\
+
+Write-Host "Formal verification tools cloned to $fvDir"
+Write-Host "Run: python walche_tools\corpus_ingest.py --scan `"$fvDir`" --output corpus\formal_verification_kb.json"
+Write-Host "And: python walche_tools\corpus_ingest.py --logs `"$fvDir`" --output corpus\formal_verification_kb.json"
+Write-Host "Z3 QUICK WIN: pip install z3-solver  (add runtime invariant checks to WALCHE Python loops immediately)"
+```
+
+**Z3 quick win (no clone needed):** Run `pip install z3-solver` in the WALCHE venv immediately. Then add Z3 assertion probes directly to WALCHE's healing loop Python code to verify loop invariants at runtime — no full Dafny pipeline required to start getting formal verification benefits.
+
+---
+
 ## QUEUE 5 — Explore provenance log
 
 ```powershell
@@ -479,6 +553,7 @@ python run_system.py --phase full
 | 4G — RAG ingestion repos | PENDING | Clone llama_index, langchain, unstructured; hardens CEVIP PreIngest phase |
 | 4H — TDL papers + libs | PENDING | Zia arXiv:2302.03836, Hensel Frontiers 2021; clone giotto-tda, TopoModelX, TopoNetX |
 | 4I — Loop Engineering | PENDING | ReAct arXiv:2210.03629 + 5 blog articles (save as .md) + clone LangGraph/AutoGen/CrewAI/OpenAI-Agents |
+| 4J — Formal verification + RSI | PENDING | arXiv:2604.22601 (LLM+Dafny) HIGHEST PRIORITY; clone Dafny/TLA+/Lean4/Coq/Z3/Quint; pip install z3-solver quick win |
 | 5 — Explore provenance | PENDING | Run after Queue 1 generates new log |
 | 6 — Full pipeline | PENDING | Run last, after all above complete |
 
