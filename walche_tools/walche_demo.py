@@ -22,9 +22,10 @@ from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Tuple
 
 # ── WALCHE root detection ─────────────────────────────────────────────────────
-ROOT = Path(__file__).parent
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+ROOT   = Path(__file__).parent.parent   # walche_tools/../ = WALCHE root
+_tools = Path(__file__).parent          # walche_tools/ — used for imports
+if str(_tools) not in sys.path:
+    sys.path.insert(0, str(_tools))
 
 # ── Terminal colors (Windows 10+ ANSI supported) ─────────────────────────────
 class C:
@@ -401,10 +402,12 @@ def _run_council_deliberation(
             print(f"  {warn('[COUNCIL]')} Deliberation error: {e}")
             continue
 
-        final = result.get("final_result", {})
-        verdict_val = final.get("verdict", "UNKNOWN")
-        score = float(final.get("score", 0.0))
-        reasoning = final.get("reasoning", "")[:80]
+        verdict_val = result.get("final_verdict", result.get("verdict", "UNKNOWN"))
+        try:
+            score = float(result.get("score", result.get("final_score", 0.0)))
+        except (TypeError, ValueError):
+            score = 0.0
+        reasoning = result.get("reasoning", result.get("summary", ""))[:80]
 
         v_color = C.GREEN if verdict_val in ("APPROVED", "GO") else \
                   C.YELLOW if "CONDITION" in verdict_val else C.RED
@@ -439,9 +442,11 @@ def main(argv=None):
     parser.add_argument("--api-key",  metavar="KEY", default=None,
                         help="Anthropic API key for real Council agents")
     parser.add_argument("--cycles",   type=int, default=4,
-                        help="Number of healing cycles (default: 4)")
+                        help="Number of healing cycles (default: 4, min: 1)")
     parser.add_argument("-h", "--help", action="help")
     args, _ = parser.parse_known_args(argv)
+    if args.cycles < 1:
+        parser.error("--cycles must be at least 1")
 
     ts = datetime.now(timezone.utc).isoformat()
     NUM_CYCLES = args.cycles
@@ -564,7 +569,7 @@ def main(argv=None):
     # ── Provenance log ────────────────────────────────────────────────────────
     log_dir = ROOT / "logs"
     log_dir.mkdir(exist_ok=True)
-    log_path = log_dir / f"walche_demo_{ts[:10]}.json"
+    log_path = log_dir / f"walche_demo_{ts[:19].replace(':', '').replace('T', '_')}.json"
 
     log_entry = {
         "timestamp": ts,

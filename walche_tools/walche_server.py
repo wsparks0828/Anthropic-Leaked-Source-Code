@@ -26,6 +26,12 @@ import os
 import subprocess
 import sys
 from http.server import BaseHTTPRequestHandler, HTTPServer
+try:
+    from http.server import ThreadingHTTPServer as _ThreadingHTTPServer
+except ImportError:
+    from socketserver import ThreadingMixIn
+    class _ThreadingHTTPServer(ThreadingMixIn, HTTPServer):
+        daemon_threads = True
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -43,23 +49,28 @@ def _run_status_json() -> dict:
     status_script = TOOLS_DIR / "walche_status.py"
     if not status_script.exists():
         return _status_error("walche_status.py not found")
+    proc = None
     try:
-        result = subprocess.run(
+        proc = subprocess.Popen(
             [sys.executable, str(status_script), "--json"],
-            capture_output=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             text=True,
-            timeout=30,
             cwd=str(WALCHE_ROOT),
         )
-        if result.returncode == 0 and result.stdout.strip():
-            return json.loads(result.stdout)
-        return _status_error(result.stderr.strip() or "walche_status.py returned no output")
+        stdout, _stderr = proc.communicate(timeout=30)
+        if proc.returncode == 0 and stdout.strip():
+            return json.loads(stdout)
+        return _status_error("walche_status.py exited with non-zero status")
     except subprocess.TimeoutExpired:
+        if proc is not None:
+            proc.kill()
+            proc.communicate()
         return _status_error("walche_status.py timed out after 30s")
     except json.JSONDecodeError as exc:
         return _status_error(f"JSON parse error: {exc}")
-    except Exception as exc:
-        return _status_error(str(exc))
+    except Exception:
+        return _status_error("Unexpected error running status script")
 
 
 def _status_error(msg: str) -> dict:
@@ -84,7 +95,7 @@ def _latest_demo_log() -> dict:
             return json.loads(path.read_text(encoding="utf-8"))
         except Exception:
             continue
-    return {"error": "No walche_demo_*.json files found in logs/"}
+    return {"error": "No valid walche_demo_*.json files found in logs/ (files may be missing or corrupt)"}
 
 
 def _council_decisions(n: int = 20) -> list[dict]:
@@ -181,7 +192,7 @@ def main() -> None:
     if not DASHBOARD_HTML.exists():
         print("  WARNING: walche_dashboard.html not found — GET / will return 404")
 
-    server = HTTPServer((args.host, args.port), WalcheHandler)
+    server = _ThreadingHTTPServer((args.host, args.port), WalcheHandler)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

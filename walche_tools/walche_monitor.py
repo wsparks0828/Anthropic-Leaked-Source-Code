@@ -157,9 +157,9 @@ def _run_live_check(root: Path) -> dict[str, float] | None:
 
 def _trigger_healing(root: Path, log: MonitorLog) -> bool:
     """Spawn walche_demo.py as a subprocess to run a healing pass."""
-    demo = root / "walche_demo.py"
+    demo = root / "walche_tools" / "walche_demo.py"
     if not demo.exists():
-        log.write("walche_demo.py not found at WALCHE root — cannot trigger healing", "WARN")
+        log.write("walche_demo.py not found in walche_tools/ — cannot trigger healing", "WARN")
         return False
 
     log.write("Triggering healing pass via walche_demo.py…", "HEAL")

@@ -1004,10 +1004,10 @@ function openDetailPanel(nodeId) {
         <dt>Score</dt><dd style="color:${scoreColor(fs)}">${fs.toFixed(4)}</dd>
         <dt>Verdict</dt><dd style="color:${scoreColor(fs)};font-weight:700">${esc(lr.verdict||'—')}</dd>
         <dt>Delta</dt><dd style="color:${del>=0?'#4ea76b':'#c64f4f'}">${del>=0?'+':''}${del.toFixed(4)}</dd>
-        <dt>Cycles</dt><dd>${lr.cycles || (lr.cycle_scores||[]).length || '—'}</dd>
-        <dt>Real modules</dt><dd style="color:#4ea76b">${lr.real_modules||0}</dd>
-        <dt>Stub modules</dt><dd style="color:${(lr.stub_modules||0)>0?'#d4a017':'#4ea76b'}">${lr.stub_modules||0}</dd>
-        <dt>Timestamp</dt><dd style="font-size:10px">${(lr.timestamp||'').slice(0,19).replace('T',' ')}</dd>
+        <dt>Cycles</dt><dd>${esc(String(lr.cycles || (lr.cycle_scores||[]).length || '—'))}</dd>
+        <dt>Real modules</dt><dd style="color:#4ea76b">${esc(String(lr.real_modules||0))}</dd>
+        <dt>Stub modules</dt><dd style="color:${(lr.stub_modules||0)>0?'#d4a017':'#4ea76b'}">${esc(String(lr.stub_modules||0))}</dd>
+        <dt>Timestamp</dt><dd style="font-size:10px">${esc((lr.timestamp||'').slice(0,19).replace('T',' '))}</dd>
       </dl>
       <div class="dp-bar-wrap" style="margin-top:10px">
         <div class="dp-bar-fill" style="width:${Math.round(fs*100)}%;background:${scoreColor(fs)}"></div>
@@ -1062,7 +1062,7 @@ function openDetailPanel(nodeId) {
         <dt>Entries</dt><dd>${n.toLocaleString()}</dd>
         <dt>Tokens</dt><dd>${(kb.total_tokens||0).toLocaleString()}</dd>
         <dt>Integrity</dt><dd style="color:${scoreColor(intg)}">${intg.toFixed(4)}</dd>
-        ${kb.generated_at ? `<dt>Generated</dt><dd style="font-size:10px">${kb.generated_at.slice(0,10)}</dd>` : ''}
+        ${kb.generated_at ? `<dt>Generated</dt><dd style="font-size:10px">${esc(kb.generated_at.slice(0,10))}</dd>` : ''}
       </dl>
     </div>
     <div class="dp-note" style="border-color:${gap>0?'rgba(212,160,23,.3)':'rgba(78,167,107,.3)'}">
@@ -1082,8 +1082,8 @@ function openDetailPanel(nodeId) {
     const bsl = vll.baseline_weights  || {};
     html += `<div class="dp-section"><h4>VLL State</h4>
       <dl class="dp-kv">
-        <dt>Proposals</dt><dd>${vll.proposals_processed || 0}</dd>
-        <dt>Last updated</dt><dd style="font-size:10px">${(vll.last_updated||'—').slice(0,10)}</dd>
+        <dt>Proposals</dt><dd>${esc(String(vll.proposals_processed || 0))}</dd>
+        <dt>Last updated</dt><dd style="font-size:10px">${esc((vll.last_updated||'—').slice(0,10))}</dd>
         <dt>Learning rate</dt><dd>0.03</dd>
         <dt>Weight bounds</dt><dd>0.60 – 1.40</dd>
         <dt>Decay rate</dt><dd>0.01</dd>
@@ -1123,7 +1123,7 @@ function openDetailPanel(nodeId) {
           <span style="font-family:monospace;color:#e6e8eb">${esc(t)}</span>
           <span style="font-family:monospace;font-weight:700;color:${c}">${esc(v)}</span>
         </div>
-        <div style="font-size:10px;color:#5f6975;font-family:monospace;margin-top:2px">${(d.timestamp||'').slice(0,16)}</div>
+        <div style="font-size:10px;color:#5f6975;font-family:monospace;margin-top:2px">${esc((d.timestamp||'').slice(0,16))}</div>
         ${d.summary ? `<div style="font-size:11px;color:#9aa5b1;margin-top:4px">${esc(d.summary)}</div>` : ''}
       </div>`;
     });
@@ -1224,7 +1224,7 @@ function buildSpeakText(nodeId, data) {
   }
   if (['corpus','healing','loop','meta'].includes(nodeId) && lr) {
     const last  = (lr.domain_results||[]).slice(-1)[0] || [];
-    const entry = Array.isArray(last) ? last.find(e => DOMAIN_MAP[e.domain||''] === nodeId || (e.domain||'').split('.')[0] === nodeId) : null;
+    const entry = Array.isArray(last) ? last.find(e => e && (DOMAIN_MAP[e.domain||''] === nodeId || (e.domain||'').split('.')[0] === nodeId)) : null;
     if (entry) {
       const s = parseFloat(entry.score || 0);
       return `${info.title}. Score ${s.toFixed(3)}. Status: ${scoreLabel(s)}.`;
@@ -1319,7 +1319,15 @@ function startListening() {
   $('voice-strip').classList.add('active');
   $('voice-heard').textContent = '…';
   $('voice-said').textContent  = '';
-  try { recognition.start(); } catch(e) { voiceActive = false; }
+  try {
+    recognition.start();
+  } catch(e) {
+    voiceActive = false;
+    $('btn-voice').classList.remove('listening');
+    $('voice-btn-label').textContent = 'Voice';
+    $('voice-wave').style.display = 'none';
+    $('voice-strip').classList.remove('active');
+  }
 }
 
 function handleVoiceCmd(cmd) {
@@ -1381,7 +1389,10 @@ function handleVoiceCmd(cmd) {
 }
 
 /* ══ API fetch + render ═══════════════════════════════════════ */
+let _fetchInFlight = false;
 async function fetchAndRender() {
+  if (_fetchInFlight) return;
+  _fetchInFlight = true;
   const pill = $('api-pill');
   pill.textContent = 'loading…';
   pill.className   = 'pill';
@@ -1414,6 +1425,8 @@ async function fetchAndRender() {
     pill.textContent = 'offline';
     pill.className   = 'pill bad';
     console.error('Fetch error:', err);
+  } finally {
+    _fetchInFlight = false;
   }
 }
 

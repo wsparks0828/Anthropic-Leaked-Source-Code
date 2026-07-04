@@ -327,7 +327,7 @@ def c10_provenance() -> Check:
 def c11_arch_health() -> Check:
     """Aggregate architecture health: key dirs, file counts, venv."""
     issues = []
-    for d in ["core", "tools", "backend"]:
+    for d in ["core", "walche_tools", "backend"]:
         if not (ROOT / d).exists():
             issues.append(f"missing {d}/")
     venv_ok = (ROOT / "venv" / "Scripts" / "python.exe").exists() \

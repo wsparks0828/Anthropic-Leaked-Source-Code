@@ -187,7 +187,7 @@ def _print_council(decisions: list[dict]) -> None:
     for d in reversed(decisions[-3:]):
         ts  = d.get("timestamp", "")[:10]
         t   = d.get("proposal_type", d.get("type", "?"))
-        v   = d.get("verdict", d.get("final_verdict", "?"))
+        v   = str(d.get("verdict", d.get("final_verdict", "?")) or "?")
         vc  = C.G if "APPROVE" in v.upper() or v == "GO" else \
               C.Y if "CONDITION" in v.upper() else C.R
         print(f"  {ts}  [{t:<18}]  {_col(v, vc)}")
@@ -244,7 +244,7 @@ def main() -> None:
     if args.json:
         status = {
             "last_run":         last_log,
-            "corpus_kb_stats":  {**(kb.get("stats") or {}), "generated_at": kb.get("generated_at")} if kb else None,
+            "corpus_kb_stats":  ({**(kb.get("stats")), "generated_at": kb.get("generated_at")} if kb.get("stats") is not None else None) if kb else None,
             "council_decisions":council,
             "vll_state":        vll,
             "score_trend":      trend,

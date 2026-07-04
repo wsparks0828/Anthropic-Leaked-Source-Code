@@ -9,7 +9,7 @@ import subprocess
 import pathlib
 import re
 
-ROOT = pathlib.Path(__file__).parent.resolve()
+ROOT = pathlib.Path(__file__).parent.parent.resolve()
 
 def banner(msg):
     print(f"\n{'='*60}")

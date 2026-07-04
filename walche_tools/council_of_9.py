@@ -884,9 +884,9 @@ def _local_evaluate(judge: Judge, proposal: str, proposal_type: str) -> VoteResu
     t0 = time.time()
     p_lower = proposal.lower()
 
-    # Check hard veto triggers
+    # Check hard veto triggers — full phrase match only (not word-by-word)
     for trigger in judge.hard_veto_triggers:
-        if any(word in p_lower for word in trigger.replace("_", " ").split()):
+        if trigger.replace("_", " ").lower() in p_lower:
             return VoteResult(
                 judge_id=judge.id,
                 judge_name=judge.name,

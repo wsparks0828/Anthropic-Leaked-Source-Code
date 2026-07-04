@@ -114,8 +114,8 @@ def load_state(root: Path) -> dict:
     if path.exists():
         try:
             return json.loads(path.read_text(encoding="utf-8"))
-        except Exception:
-            pass
+        except Exception as _e:
+            print(f"  [VLL] WARNING: {path.name} could not be read ({_e}) — starting fresh")
     # Default state
     return {
         "version":           VLL_VERSION,
@@ -134,7 +134,9 @@ def load_state(root: Path) -> dict:
 def save_state(root: Path, state: dict) -> None:
     path = root / VLL_STATE_FILE
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(state, indent=2, ensure_ascii=False), encoding="utf-8")
+    _tmp = path.with_suffix(".tmp")
+    _tmp.write_text(json.dumps(state, indent=2, ensure_ascii=False), encoding="utf-8")
+    os.replace(_tmp, path)
 
 
 # ── Decision source readers ───────────────────────────────────────────────────

@@ -194,7 +194,7 @@ def extract_module_entries(path: Path, root: Path) -> list[CorpusEntry]:
         ]
 
         has_hints = any(
-            bool(m.returns or m.args.annotations)
+            bool(m.returns or any(a.annotation for a in m.args.args))
             for m in ast.walk(node)
             if isinstance(m, ast.FunctionDef)
         )
@@ -500,7 +500,9 @@ def run_ingest(
             "entries": [e.to_dict() for e in passed],
         }
 
-        out.write_text(json.dumps(kb, indent=2, ensure_ascii=False), encoding="utf-8")
+        _tmp = out.with_suffix(".tmp")
+        _tmp.write_text(json.dumps(kb, indent=2, ensure_ascii=False), encoding="utf-8")
+        os.replace(_tmp, out)
         print(f"        Written: {out}  ({out.stat().st_size:,} bytes)")
         print(f"        Entries: {len(passed)}")
 
@@ -1050,7 +1052,9 @@ def run_log_ingest(
             },
             "entries": deduped,
         }
-        out.write_text(json.dumps(kb, indent=2, ensure_ascii=False), encoding="utf-8")
+        _tmp = out.with_suffix(".tmp")
+        _tmp.write_text(json.dumps(kb, indent=2, ensure_ascii=False), encoding="utf-8")
+        os.replace(_tmp, out)
         print(f"        Written: {out}  ({out.stat().st_size:,} bytes)")
         print(f"        Total entries in KB: {len(deduped)}")
 
