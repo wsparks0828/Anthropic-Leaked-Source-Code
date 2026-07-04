@@ -2,7 +2,7 @@
   "_meta": {
     "purpose": "Living inventory of all known corpus sources — ingested, pending, and discovered.",
     "law": "Law 8 + Law 9 compliance: all logged materials from any agent or platform are ingestion candidates.",
-    "last_updated": "2026-07-04",
+    "last_updated": "2026-07-04 (batch 2 — Math genre sources)",
     "schema_version": "1.0",
     "fields": {
       "id": "unique slug",
@@ -160,18 +160,78 @@
     },
     {
       "id": "osmoda_math_quantum",
-      "platform": "OSMODA / arXiv + UCSB",
+      "platform": "OSMODA / arXiv + UCSB + David Tong",
       "local_path": "C:\\Users\\wspar\\OneDrive\\Microsoft Copilot Chat Files\\Desktop\\OSMODA\\Mathematics_Undergrad_to_PhD_Quantum",
-      "format": "PDF",
-      "size_estimate": "~10 MB",
-      "size_bytes": 10485760,
+      "format": "PDF + HTML downloads",
+      "size_estimate": "~10-20 MB (PDFs downloaded) — potential 1-3GB with full note sets",
+      "size_bytes": null,
       "genres": ["Mathematics_Undergrad_to_PhD_Quantum", "Engineering", "Thermo"],
       "status": "pending",
-      "priority": 3,
-      "ingest_command": "python walche_tools\\corpus_ingest.py --logs \"C:\\Users\\wspar\\OneDrive\\Microsoft Copilot Chat Files\\Desktop\\OSMODA\\Mathematics_Undergrad_to_PhD_Quantum\" --output corpus\\walche_kb.json",
-      "notes": "arXiv QFT papers, Srednicki QFT 616-page PDF (UCSB, free), MIT OCW lecture notes. Boosts Math, Engineering, Thermo genres.",
-      "source_files": ["BULK_DOWNLOAD_LOG.md", "BALANCED_CORPUS_500MB_LOG.md"],
+      "priority": 2,
+      "ingest_command": "python walche_tools\\corpus_ingest.py --logs \"C:\\Users\\wspar\\OneDrive\\Microsoft Copilot Chat Files\\Desktop\\OSMODA\\Mathematics_Undergrad_to_PhD_Quantum\" --output corpus\\math_kb.json",
+      "notes": "Tier-1 sources confirmed: Coleman QFT 253a (arXiv:1110.5013, 335pp), Quantum Many-Body Theory (arXiv:2507.09229, 504pp), David Tong QFT (qft.pdf, ~230pp + 14 video lectures), Srednicki UCSB QFT DRAFT (616pp). README and SOURCES.md are in this folder. Scope: undergraduate through PhD — linear algebra to QFT, many-body, quantum info, condensed matter. See individual source entries below for per-paper details.",
+      "source_files": ["BULK_DOWNLOAD_LOG.md", "BALANCED_CORPUS_500MB_LOG.md", "README.md", "SOURCES.md", "download_list.txt", "bulk_500mb_manifest.txt"],
+      "sha256_provenance": false
+    },
+    {
+      "id": "math_coleman_qft_253a",
+      "platform": "arXiv / Harvard",
+      "local_path": "C:\\Users\\wspar\\OneDrive\\Microsoft Copilot Chat Files\\Desktop\\OSMODA\\Mathematics_Undergrad_to_PhD_Quantum\\1110.5013",
+      "format": "PDF (arXiv download)",
+      "size_estimate": "~1.3 MB (PDF v5)",
+      "size_bytes": 1363968,
+      "genres": ["Mathematics_Undergrad_to_PhD_Quantum"],
+      "status": "pending",
+      "priority": 1,
+      "ingest_command": "python walche_tools\\corpus_ingest.py --logs \"C:\\Users\\wspar\\OneDrive\\Microsoft Copilot Chat Files\\Desktop\\OSMODA\\Mathematics_Undergrad_to_PhD_Quantum\" --output corpus\\math_kb.json",
+      "notes": "Sidney Coleman's Physics 253a — Quantum Field Theory. Harvard 1986-87. 28 lectures, 335 pages. Typeset by Yuan-Sen Ting + Bryan Gin-ge Chen. arXiv:1110.5013v5 (Feb 2013). Gold-standard QFT reference. Downloaded as HTML abstract page — PDF at https://arxiv.org/pdf/1110.5013. DOI: 10.48550/arXiv.1110.5013.",
+      "source_files": ["1110.5013 (arXiv HTML)", "download_list.txt", "BULK_DOWNLOAD_LOG.md"],
       "sha256_provenance": true
+    },
+    {
+      "id": "math_arxiv_2507_09229",
+      "platform": "arXiv",
+      "local_path": "C:\\Users\\wspar\\OneDrive\\Microsoft Copilot Chat Files\\Desktop\\OSMODA\\Mathematics_Undergrad_to_PhD_Quantum\\2507.09229",
+      "format": "PDF (arXiv download)",
+      "size_estimate": "~3.7 MB",
+      "size_bytes": 3677662,
+      "genres": ["Mathematics_Undergrad_to_PhD_Quantum"],
+      "status": "pending",
+      "priority": 1,
+      "ingest_command": "python walche_tools\\corpus_ingest.py --logs \"C:\\Users\\wspar\\OneDrive\\Microsoft Copilot Chat Files\\Desktop\\OSMODA\\Mathematics_Undergrad_to_PhD_Quantum\" --output corpus\\math_kb.json",
+      "notes": "Quantum Many-Body Theory lecture notes. arXiv:2507.09229. 504 pages. 2025 submission. SHA256: 4C33F2A82EF888C169D60D35DC284F661A370F2CE62620A4C920268D589EA377 (from BULK_DOWNLOAD_LOG.md). One of the highest-volume single documents in the Math genre.",
+      "source_files": ["BULK_DOWNLOAD_LOG.md", "download_list.txt", "bulk_500mb_manifest.txt"],
+      "sha256_provenance": true
+    },
+    {
+      "id": "math_davidtong_qft",
+      "platform": "davidtong.org / Perimeter Institute",
+      "local_path": "C:\\Users\\wspar\\OneDrive\\Microsoft Copilot Chat Files\\Desktop\\OSMODA\\Mathematics_Undergrad_to_PhD_Quantum\\https___davidtong.org_teaching_quantum-field-theory_.downloaded",
+      "format": "HTML page downloaded (links to chapter PDFs)",
+      "size_estimate": "~23 KB (index page); full qft.pdf ~several MB",
+      "size_bytes": 22854,
+      "genres": ["Mathematics_Undergrad_to_PhD_Quantum"],
+      "status": "partial",
+      "priority": 1,
+      "ingest_command": "python walche_tools\\corpus_ingest.py --logs \"C:\\Users\\wspar\\OneDrive\\Microsoft Copilot Chat Files\\Desktop\\OSMODA\\Mathematics_Undergrad_to_PhD_Quantum\" --output corpus\\math_kb.json",
+      "notes": "David Tong QFT lecture notes (Cambridge + Perimeter Institute). 6 chapters: Classical Field Theory, Canonical Quantization, Interacting Fields, Dirac Equation, Quantizing Dirac, QED. 4 problem sheets. 14 PIRSA video lectures. Only the index HTML was downloaded — full PDF at /pdfs/teaching/quantum-field-theory/qft.pdf is separate. Status: partial (need qft.pdf). SHA256 of index: 98EBF0B80F8DF59C7EFC1942FDBE9D22131C751139B637EEB272F45ECB3DCBF8.",
+      "source_files": ["https___davidtong.org_teaching_quantum-field-theory_.downloaded", "BULK_DOWNLOAD_LOG.md", "SOURCES.md"],
+      "sha256_provenance": true
+    },
+    {
+      "id": "math_srednicki_qft_draft",
+      "platform": "UCSB (web.physics.ucsb.edu)",
+      "local_path": "C:\\Users\\wspar\\OneDrive\\Microsoft Copilot Chat Files\\Desktop\\OSMODA\\Mathematics_Undergrad_to_PhD_Quantum",
+      "format": "PDF",
+      "size_estimate": "~5-10 MB (616pp)",
+      "size_bytes": null,
+      "genres": ["Mathematics_Undergrad_to_PhD_Quantum", "Thermo", "Engineering"],
+      "status": "pending",
+      "priority": 2,
+      "ingest_command": "python walche_tools\\corpus_ingest.py --logs \"C:\\Users\\wspar\\OneDrive\\Microsoft Copilot Chat Files\\Desktop\\OSMODA\\Mathematics_Undergrad_to_PhD_Quantum\" --output corpus\\math_kb.json",
+      "notes": "Mark Srednicki QFT draft (UCSB). 616 pages. Free from publisher for personal use. Referenced in BALANCED_CORPUS_500MB_LOG and bulk_500mb_manifest.txt. Covers QFT from introductory to advanced — spin-0, spin-1/2, spin-1 fields, renormalization, path integrals. Complements Coleman and Tong well.",
+      "source_files": ["bulk_500mb_manifest.txt", "BALANCED_CORPUS_500MB_LOG.md"],
+      "sha256_provenance": false
     },
     {
       "id": "osmoda_legal",
@@ -220,14 +280,21 @@
     }
   ],
   "summary": {
-    "total_sources": 11,
+    "total_sources": 15,
     "ingested": 0,
-    "pending": 11,
-    "partial": 0,
+    "pending": 14,
+    "partial": 1,
     "blocked": 0,
     "total_known_size_mb": 1881.5,
+    "last_updated": "2026-07-04",
     "highest_priority_action": "Run Queue 4B in PENDING_COMMANDS.md — ingest OSMODA full corpus against WALCHE. Predicted corpus.integrity improvement: 0.78 → 0.87-0.92.",
-    "genres_with_zero_coverage": ["Commercial", "English", "Credit_Information_Basic_to_Secret", "Thermo", "Engineering", "Federal"],
-    "genres_with_strong_coverage": ["Computer_Science_Hardware_to_Advanced_Software", "AI_Fundamentals_to_Advanced_Practices_Repos_Issues_Testing", "GC_Business_Documentation_Bid_to_Completion_Lien_Waivers"]
+    "genres_with_zero_coverage": ["Commercial", "English", "Credit_Information_Basic_to_Secret", "Federal"],
+    "genres_with_partial_coverage": ["Thermo", "Engineering"],
+    "genres_with_strong_coverage": ["Computer_Science_Hardware_to_Advanced_Software", "AI_Fundamentals_to_Advanced_Practices_Repos_Issues_Testing", "GC_Business_Documentation_Bid_to_Completion_Lien_Waivers", "Mathematics_Undergrad_to_PhD_Quantum"],
+    "genres_confirmed_by_user": ["Mathematics_Undergrad_to_PhD_Quantum"],
+    "upload_batches": [
+      {"batch": 1, "date": "2026-07-04", "files": 4, "description": "OSMODA/ESTC2 platform overview logs"},
+      {"batch": 2, "date": "2026-07-04", "files": 9, "description": "Math genre — README, SOURCES, Coleman, Many-Body Theory, David Tong, Srednicki"}
+    ]
   }
 }
