@@ -152,6 +152,71 @@ python walche_tools\corpus_ingest.py `
 
 ---
 
+## QUEUE 4C — Clone remaining repos into OSMODA (exact paths from CLONE_COMMANDS.md)
+
+> **Priority: HIGH** — These repos add volume to CS and AI genres. Run BEFORE Queue 4B if repos aren't already present.
+> Check if `linux`, `llvm`, `transformers`, `datasets` already exist first (they may have been cloned Jun 29, 2026).
+
+```powershell
+# --- CS repos (Computer_Science_Hardware_to_Advanced_Software) ---
+cd "C:\Users\wspar\OneDrive\Microsoft Copilot Chat Files\Desktop\OSMODA\Computer_Science_Hardware_to_Advanced_Software"
+
+# Skip if already exists
+if (!(Test-Path "linux")) {
+    git clone --depth 1 https://github.com/torvalds/linux linux
+}
+if (!(Test-Path "llvm")) {
+    git clone --depth 1 https://github.com/llvm/llvm-project llvm
+}
+if (!(Test-Path "riscv-isa-manual")) {
+    git clone --depth 1 https://github.com/riscv/riscv-isa-manual riscv-isa-manual
+}
+
+# --- AI repos (AI_Fundamentals_to_Advanced_Practices_Repos_Issues_Testing) ---
+cd "C:\Users\wspar\OneDrive\Microsoft Copilot Chat Files\Desktop\OSMODA\AI_Fundamentals_to_Advanced_Practices_Repos_Issues_Testing"
+
+if (!(Test-Path "transformers")) {
+    git clone --depth 1 https://github.com/huggingface/transformers transformers
+}
+if (!(Test-Path "datasets")) {
+    git clone --depth 1 https://github.com/huggingface/datasets datasets
+}
+if (!(Test-Path "lm-evaluation-harness")) {
+    git clone --depth 1 https://github.com/EleutherAI/lm-evaluation-harness lm-evaluation-harness
+}
+```
+
+**Estimated disk:** CS repos ~1.6 GB (linux dominant). AI repos ~200-350 MB. Run with stable internet.  
+**Note:** linux and transformers may already be present from Jun 29, 2026 run. The `Test-Path` guards skip if so.
+
+---
+
+## QUEUE 4D — Download US Code XML (Legal genre)
+
+> Add machine-readable US Code to the Legal genre for high-precision CEVIP ingestion.
+
+```powershell
+cd "C:\Users\wspar\OneDrive\Microsoft Copilot Chat Files\Desktop\OSMODA\Legal_Terminology"
+
+# US Code Title 26 (Internal Revenue Code)
+Invoke-WebRequest `
+  -Uri "https://uscode.house.gov/download/releasepoints/us/pl/119/99/xml/usc26.xml.zip" `
+  -OutFile "usc26.xml.zip"
+
+# US Code Title 28 (Judiciary and Judicial Procedure)
+Invoke-WebRequest `
+  -Uri "https://uscode.house.gov/download/releasepoints/us/pl/119/99/xml/usc28.xml.zip" `
+  -OutFile "usc28.xml.zip"
+
+# Expand both
+Expand-Archive -Path usc26.xml.zip -DestinationPath usc26_xml -Force
+Expand-Archive -Path usc28.xml.zip -DestinationPath usc28_xml -Force
+
+Write-Host "Done. Run corpus_ingest.py --logs Legal_Terminology --output corpus\legal_kb.json next."
+```
+
+---
+
 ## QUEUE 5 — Explore provenance log
 
 ```powershell
