@@ -124,19 +124,26 @@ def _quality_score(entry: CorpusEntry) -> float:
     return min(1.0, score)
 
 
-def extract_module_entries(path: Path, root: Path) -> list[CorpusEntry]:
-    """Parse a .py file with AST and extract corpus entries."""
+def extract_module_entries(path: Path, root: Path) -> tuple[list[CorpusEntry], str | None]:
+    """Parse a .py file with AST and extract corpus entries.
+    Returns (entries, error) — error is None on success, so a scan can
+    distinguish "file legitimately had nothing worth keeping" from "file
+    could not be read/parsed" instead of both silently producing []."""
     try:
-        source = path.read_text(encoding="utf-8", errors="ignore")
-    except Exception:
-        return []
+        # utf-8-sig strips a leading BOM (Windows editors commonly add one);
+        # left as plain utf-8, ast.parse chokes on U+FEFF with a SyntaxError
+        # that the bare except below silently swallows, vanishing the file
+        # from the corpus with no trace.
+        source = path.read_text(encoding="utf-8-sig", errors="replace")
+    except Exception as e:
+        return [], f"read error: {e}"
 
     try:
         tree = ast.parse(source, filename=str(path))
-    except SyntaxError:
-        return []
+    except SyntaxError as e:
+        return [], f"syntax error: {e}"
 
-    rel_path = str(path.relative_to(root))
+    rel_path = path.relative_to(root).as_posix()  # OS-independent id/path for cross-platform dedup
     entries: list[CorpusEntry] = []
     now = datetime.now(timezone.utc).isoformat()
 
@@ -148,7 +155,7 @@ def extract_module_entries(path: Path, root: Path) -> list[CorpusEntry]:
     if module_doc:
         module_content_parts.append(f"Description: {module_doc}")
 
-    module_content = "\n".join(module_content_parts)
+    module_content = scrub_secrets("\n".join(module_content_parts))
     tok = _count_tokens(module_content)
 
     e = CorpusEntry(
@@ -180,22 +187,30 @@ def extract_module_entries(path: Path, root: Path) -> list[CorpusEntry]:
 
         doc = ast.get_docstring(node) or ""
         bases = [_safe_unparse(b) for b in node.bases]
-        methods = [
-            n.name for n in ast.walk(node)
-            if isinstance(n, ast.FunctionDef) and not n.name.startswith("__")
+        # Iterate node.body directly (not ast.walk(node)) — ast.walk descends
+        # into method bodies and nested classes too, so the old code counted
+        # local variables inside methods as "class attributes" and included
+        # methods of nested classes as if they belonged to this class.
+        method_nodes = [
+            n for n in node.body
+            if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
         ]
+        methods = [n.name for n in method_nodes if not n.name.startswith("__")]
         attrs = [
             n.targets[0].id
-            for n in ast.walk(node)
+            for n in node.body
             if isinstance(n, ast.Assign)
             and len(n.targets) == 1
             and isinstance(n.targets[0], ast.Name)
+        ] + [
+            n.target.id
+            for n in node.body
+            if isinstance(n, ast.AnnAssign) and isinstance(n.target, ast.Name)
         ]
 
         has_hints = any(
             bool(m.returns or any(a.annotation for a in m.args.args))
-            for m in ast.walk(node)
-            if isinstance(m, ast.FunctionDef)
+            for m in method_nodes
         )
 
         parts = [
@@ -211,11 +226,11 @@ def extract_module_entries(path: Path, root: Path) -> list[CorpusEntry]:
         if attrs:
             parts.append(f"Attributes: {', '.join(attrs[:15])}")
 
-        content = "\n".join(parts)
+        content = scrub_secrets("\n".join(parts))
         tok = _count_tokens(content)
 
         ce = CorpusEntry(
-            id=f"class::{rel_path}::{node.name}",
+            id=f"class::{rel_path}::{node.name}::{node.lineno}",
             source_file=rel_path,
             entry_type="class",
             name=node.name,
@@ -257,7 +272,7 @@ def extract_module_entries(path: Path, root: Path) -> list[CorpusEntry]:
         if doc:
             parts.append(f"Description: {doc}")
 
-        content = "\n".join(parts)
+        content = scrub_secrets("\n".join(parts))
         tok = _count_tokens(content)
 
         fe = CorpusEntry(
@@ -283,7 +298,7 @@ def extract_module_entries(path: Path, root: Path) -> list[CorpusEntry]:
         if tok >= MIN_CONTENT_TOKENS:
             entries.append(fe)
 
-    return entries
+    return entries, None
 
 
 # ── PreIngestGate shim ────────────────────────────────────────────────────────
@@ -330,17 +345,26 @@ def _try_real_gate(entry_dict: dict) -> bool:
 
 # ── Scanner ───────────────────────────────────────────────────────────────────
 
-def scan_walche(root: Path, verbose: bool = False) -> list[CorpusEntry]:
-    """Scan the WALCHE tree and return all extracted corpus entries."""
+_EXCLUDED_DIR_NAMES = {"__pycache__", ".venv", "venv", ".git", "node_modules", "build"}
+
+
+def scan_walche(root: Path, verbose: bool = False) -> tuple[list[CorpusEntry], int, int]:
+    """Scan the WALCHE tree and return (entries, files_globbed, files_failed)."""
     all_entries: list[CorpusEntry] = []
     py_files: list[Path] = []
+    failed: list[tuple[Path, str]] = []
 
     # Collect Python files from WALCHE core directories
     for dirname in WALCHE_CORE_DIRS:
         d = root / dirname
         if d.is_dir():
             for f in d.rglob("*.py"):
-                if not any(p in str(f) for p in ["__pycache__", ".venv", "venv"]):
+                # Exclude by path PARTS, not a substring match on the full
+                # absolute path — the old check excluded every file whenever
+                # any ancestor directory merely CONTAINED "venv" as a
+                # substring (e.g. a repo checked out under .../venv-projects/),
+                # silently producing an empty scan.
+                if not (set(f.relative_to(root).parts) & _EXCLUDED_DIR_NAMES):
                     py_files.append(f)
 
     # Also scan root-level Python files (run_system.py, walche_demo.py, etc.)
@@ -351,10 +375,21 @@ def scan_walche(root: Path, verbose: bool = False) -> list[CorpusEntry]:
         print(f"  Found {len(py_files)} Python files to scan")
 
     for py in py_files:
-        entries = extract_module_entries(py, root)
+        entries, error = extract_module_entries(py, root)
+        if error:
+            failed.append((py, error))
         if verbose and entries:
             print(f"  {py.relative_to(root)} → {len(entries)} entries")
         all_entries.extend(entries)
+
+    if failed:
+        print(f"  [WARN] {len(failed)} file(s) failed to parse/extract:")
+        for f, err in failed[:10]:
+            print(f"    {f.relative_to(root)}: {err}")
+        if len(failed) > 10:
+            print(f"    ... and {len(failed) - 10} more")
+
+    return all_entries, len(py_files), len(failed)
 
     return all_entries
 
@@ -409,12 +444,13 @@ def run_ingest(
 
     # ── Scan ─────────────────────────────────────────────────────────────────
     print("  [1/4] Scanning WALCHE source tree…")
-    entries = scan_walche(root, verbose=verbose)
-    report.files_scanned = len({e.source_file for e in entries})
-    report.files_with_content = report.files_scanned
+    entries, files_globbed, files_failed = scan_walche(root, verbose=verbose)
+    report.files_scanned = files_globbed
+    report.files_with_content = len({e.source_file for e in entries})
     report.entries_extracted = len(entries)
 
-    print(f"        Files scanned:    {report.files_scanned}")
+    print(f"        Files scanned:    {report.files_scanned}"
+          + (f"  ({files_failed} failed)" if files_failed else ""))
     print(f"        Entries extracted: {report.entries_extracted}")
 
     # ── Gate ─────────────────────────────────────────────────────────────────
@@ -861,7 +897,7 @@ def extract_log_entries(path: Path, log_dir: Path) -> list[CorpusEntry]:
     except Exception:
         return []
 
-    rel = str(path.relative_to(log_dir))
+    rel = path.relative_to(log_dir).as_posix()  # OS-independent id/path for cross-platform dedup
     now = datetime.now(timezone.utc).isoformat()
     suffix = path.suffix.lower()
     entries: list[CorpusEntry] = []
