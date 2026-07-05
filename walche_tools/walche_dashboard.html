@@ -17,7 +17,8 @@ button{font-family:inherit;cursor:pointer;border:0;background:none;}
 #bg canvas{display:block;width:100%;height:100%;}
 
 /* ── Universe SVG ───────────────────────────────────────────── */
-#universe{position:fixed;inset:0;z-index:1;width:100%;height:100%;pointer-events:none;}
+#universe{position:fixed;inset:0;z-index:1;width:100%;height:100%;pointer-events:all;cursor:grab;}
+#universe.panning{cursor:grabbing;}
 #universe .node-group{pointer-events:all;cursor:pointer;transition:opacity .2s;}
 #universe .node-group:hover{opacity:.9;}
 #universe .node-group:focus{outline:none;}
@@ -485,6 +486,7 @@ button{font-family:inherit;cursor:pointer;border:0;background:none;}
   <div class="tb-spacer"></div>
   <span class="pill" id="api-pill">connecting…</span>
   <span class="pill" id="refresh-pill"></span>
+  <button class="ghost" id="btn-reset-view" title="Reset camera (or press 0)">⤢ Reset View</button>
   <button class="ghost" id="btn-refresh" title="Manual refresh">↺ Refresh</button>
   <button class="ghost" id="btn-voice"   title="Voice command (or press V)">
     <!-- Mic icon -->
@@ -786,6 +788,77 @@ function setBeamColor(domainId, color) {
 
   window.addEventListener('resize', init);
   init(); draw();
+})();
+
+/* ══ Pan & zoom — lets you actually move around the universe ══ */
+(function() {
+  const svgEl = $('universe');
+  const VB_DEFAULT = { x: 0, y: 0, w: 1400, h: 840 };
+  const MIN_W = 350, MAX_W = 2800;
+  let vb = { ...VB_DEFAULT };
+
+  function applyViewBox() {
+    svgEl.setAttribute('viewBox', `${vb.x.toFixed(1)} ${vb.y.toFixed(1)} ${vb.w.toFixed(1)} ${vb.h.toFixed(1)}`);
+  }
+  function resetView() { vb = { ...VB_DEFAULT }; applyViewBox(); }
+  window.walcheResetView = resetView; // exposed for the reset-view button + voice command
+
+  let isPanning = false, panStartX = 0, panStartY = 0, panStartVb = null, moved = false;
+
+  svgEl.addEventListener('mousedown', e => {
+    if (e.button !== 0) return;
+    isPanning = true; moved = false;
+    svgEl.classList.add('panning');
+    panStartX = e.clientX; panStartY = e.clientY;
+    panStartVb = { ...vb };
+  });
+  window.addEventListener('mousemove', e => {
+    if (!isPanning) return;
+    const rect = svgEl.getBoundingClientRect();
+    const dx = (e.clientX - panStartX) * (panStartVb.w / rect.width);
+    const dy = (e.clientY - panStartY) * (panStartVb.h / rect.height);
+    if (Math.abs(e.clientX - panStartX) > 2 || Math.abs(e.clientY - panStartY) > 2) moved = true;
+    vb.x = panStartVb.x - dx;
+    vb.y = panStartVb.y - dy;
+    applyViewBox();
+  });
+  window.addEventListener('mouseup', () => {
+    isPanning = false;
+    svgEl.classList.remove('panning');
+  });
+
+  svgEl.addEventListener('wheel', e => {
+    e.preventDefault();
+    const rect = svgEl.getBoundingClientRect();
+    const mx = vb.x + ((e.clientX - rect.left) / rect.width)  * vb.w;
+    const my = vb.y + ((e.clientY - rect.top)  / rect.height) * vb.h;
+    const factor = e.deltaY > 0 ? 1.1 : 0.9;
+    let newW = Math.max(MIN_W, Math.min(MAX_W, vb.w * factor));
+    let newH = newW * (VB_DEFAULT.h / VB_DEFAULT.w);
+    vb.x = mx - ((mx - vb.x) * (newW / vb.w));
+    vb.y = my - ((my - vb.y) * (newH / vb.h));
+    vb.w = newW; vb.h = newH;
+    applyViewBox();
+  }, { passive: false });
+
+  // Touch: single-finger pan
+  let touchStart = null;
+  svgEl.addEventListener('touchstart', e => {
+    if (e.touches.length === 1) {
+      touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY, vb: { ...vb } };
+    }
+  }, { passive: true });
+  svgEl.addEventListener('touchmove', e => {
+    if (e.touches.length === 1 && touchStart) {
+      const rect = svgEl.getBoundingClientRect();
+      const dx = (e.touches[0].clientX - touchStart.x) * (touchStart.vb.w / rect.width);
+      const dy = (e.touches[0].clientY - touchStart.y) * (touchStart.vb.h / rect.height);
+      vb.x = touchStart.vb.x - dx;
+      vb.y = touchStart.vb.y - dy;
+      applyViewBox();
+    }
+  }, { passive: true });
+  svgEl.addEventListener('touchend', () => { touchStart = null; });
 })();
 
 /* ══ Node positions for burst targets ════════════════════════ */
@@ -1263,10 +1336,31 @@ function speakStatus() {
 }
 
 function speakHelp() {
-  const msg = 'Available voice commands: status, score, verdict, refresh, ' +
-              'show core, show corpus, show healing, show loop, show meta, ' +
-              'show V.L.L., show council, close.';
+  const msg = 'You can speak naturally, not just exact commands. Try things like: ' +
+              'how is the corpus doing, what is the verdict, refresh the data, ' +
+              'show me the healing engine, reset the view, or close this panel. ' +
+              'I will match on whatever you actually say.';
   showVoiceFeedback('', msg);
+}
+
+/* ══ Natural-language normalization ══════════════════════════════
+   Strips wake words, politeness, and question scaffolding so many
+   different phrasings collapse onto the same subject match -
+   "hey walche, how's the corpus doing?" and "show corpus" both
+   reduce to something that matches the same node keywords below. */
+function normalizeCmd(raw) {
+  let c = ' ' + raw.toLowerCase().trim() + ' ';
+  c = c.replace(/\b(hey|ok|okay|hi|yo|alright)\s+walche\b/g, ' ');
+  c = c.replace(/\bwalche\b/g, ' ');
+  c = c.replace(/\bplease\b/g, ' ');
+  c = c.replace(/\b(can|could|would) you\b/g, ' ');
+  c = c.replace(/\b(i want you to|i'd like to|i would like to|let's|lets|let me)\b/g, ' ');
+  c = c.replace(/\bhow(?:'s| is| are)\s+(the\s+|our\s+)?/g, ' ');
+  c = c.replace(/\b(doing|looking|going)\s*\??\s*$/g, ' ');
+  c = c.replace(/\bwhat(?:'s| is)\s+(going on with|up with|happening with|the status of)?\s*(the\s+)?/g, ' ');
+  c = c.replace(/\b(tell me about|give me details on|give me the|give me|show me|pull up|open up|open|check on|check|look at|look up|let's see|lets see|walk me through)\b/g, ' ');
+  c = c.replace(/\s+/g, ' ').trim();
+  return c;
 }
 
 /* ══ Voice recognition ════════════════════════════════════════ */
@@ -1337,60 +1431,94 @@ function startListening() {
 
 function handleVoiceCmd(cmd) {
   $('voice-heard').textContent = cmd;
+  const raw = cmd;
 
-  if (/refresh|update|reload/.test(cmd)) {
+  // ── Action intents — broad, conversational patterns against the raw
+  // phrase, checked first since they're unlikely to be confused with a
+  // subject the user is asking to see ─────────────────────────────────
+  if (/\b(refresh|reload|update|get the latest|pull the latest|check again|re-?poll)\b/.test(raw)) {
     fetchAndRender();
-    showVoiceFeedback(cmd, 'Refreshing WALCHE status now.');
+    showVoiceFeedback(raw, 'Refreshing WALCHE status now.');
     return;
   }
-  if (/^(system )?status$|health check|overview/.test(cmd)) {
-    speakStatus(); $('voice-heard').textContent = cmd; return;
-  }
-  if (/^(what.*)?score$|final score/.test(cmd)) {
-    if (!currentData?.last_run) { showVoiceFeedback(cmd,'No data available.'); return; }
-    const fs = parseFloat(currentData.last_run.final_score||0);
-    showVoiceFeedback(cmd, `Final score is ${fs.toFixed(3)}. Status: ${scoreLabel(fs)}.`);
+  if (/\b(help|what can (i|you) (say|ask|do)|commands?( available)?|what are my options)\b/.test(raw)) {
+    speakHelp();
     return;
   }
-  if (/verdict/.test(cmd)) {
-    if (!currentData?.last_run) { showVoiceFeedback(cmd,'No data available.'); return; }
-    showVoiceFeedback(cmd, `Verdict: ${currentData.last_run.verdict || 'unknown'}.`);
-    return;
-  }
-  if (/close|dismiss|hide|back/.test(cmd)) {
+  if (/\b(close|dismiss|hide( it)?|go back|never ?mind|nothing|cancel)\b/.test(raw)) {
     closeDetailPanel();
-    showVoiceFeedback(cmd, 'Panel closed.');
+    showVoiceFeedback(raw, 'Panel closed.');
     return;
   }
-  if (/help|commands|what can/.test(cmd)) { speakHelp(); $('voice-heard').textContent = cmd; return; }
+  if (/\b(reset( the)? view|recenter|center( the)? view|zoom (all the way )?out|start over)\b/.test(raw)) {
+    window.walcheResetView();
+    showVoiceFeedback(raw, 'View reset.');
+    return;
+  }
 
-  // Node show commands
+  // ── Subject intents — strip wake words / question scaffolding first,
+  // so "hey walche how's the corpus doing" reduces to just "corpus" ───
+  const subject = normalizeCmd(raw);
   const nodeMap = [
-    [/core|walche core/,                  'core'],
-    [/corpus|corpus integrity/,           'corpus'],
-    [/heal(ing)?|healing engine/,         'healing'],
-    [/loop|loop registry/,                'loop'],
-    [/meta|meta engine|bertha/,           'meta'],
-    [/vll|v\.l\.l|verification learning/, 'vll'],
-    [/council|grand council/,             'council'],
-    [/rubric/,    'mod-rubric'],
-    [/preingest|pre.ingest|ingest gate/,  'mod-preingest'],
-    [/pain|fmea/, 'mod-pain'],
-    [/guard/,     'mod-guard'],
-    [/provenance/,'mod-prov'],
-    [/cross|ensemble/,'mod-cross'],
-    [/c12|gate/,  'mod-c12'],
+    [/\b(core|walche core|the brain)\b/,                'core'],
+    [/\b(corpus( integrity)?|knowledge base|\bkb\b)\b/, 'corpus'],
+    [/\b(heal(ing)?( engine)?|self.?repair)\b/,          'healing'],
+    [/\b(loop( registry)?|orchestrat\w*)\b/,             'loop'],
+    [/\b(meta( engine)?|bertha)\b/,                      'meta'],
+    [/\b(vll|v\.l\.l\.?|verification learning)\b/,       'vll'],
+    [/\b(council|grand council|judges|the 47)\b/,        'council'],
+    [/\b(rubric( scorer)?)\b/,                           'mod-rubric'],
+    [/\b(pre.?ingest( gate)?)\b/,                         'mod-preingest'],
+    [/\b(walche.?config|config(uration)?)\b/,            'mod-config'],
+    [/\b(pain|fmea)\b/,                                  'mod-pain'],
+    [/\b(guard.?rail|guard)\b/,                          'mod-guard'],
+    [/\b(provenance|lineage)\b/,                         'mod-prov'],
+    [/\b(cross.?ensemble|ensemble)\b/,                   'mod-cross'],
+    [/\b(c12|the gate)\b/,                               'mod-c12'],
   ];
   for (const [re, nodeId] of nodeMap) {
-    if (re.test(cmd)) {
+    if (re.test(subject)) {
       openDetailPanel(nodeId);
       const info = NODE_INFO[nodeId] || { title: nodeId };
-      showVoiceFeedback(cmd, `Showing ${info.title}.`);
+      showVoiceFeedback(raw, `Showing ${info.title}.`);
       return;
     }
   }
 
-  showVoiceFeedback(cmd, `Command not recognized. Say help for available commands.`);
+  // ── Generic system-health intents — checked after subject matching so
+  // "how's the corpus doing" opens corpus, not a generic status readout ─
+  if (/\b(verdict|pass or fail|go[- ]?no[- ]?go|are we (a )?go)\b/.test(raw)) {
+    if (!currentData?.last_run) { showVoiceFeedback(raw, 'No data available.'); return; }
+    showVoiceFeedback(raw, `Verdict: ${currentData.last_run.verdict || 'unknown'}.`);
+    return;
+  }
+  if (/\bscore\b|how('?s| is| are) (it|we) scoring|what('?s| is) the number/.test(raw)) {
+    if (!currentData?.last_run) { showVoiceFeedback(raw, 'No data available.'); return; }
+    const fs = parseFloat(currentData.last_run.final_score || 0);
+    showVoiceFeedback(raw, `Final score is ${fs.toFixed(3)}. Status: ${scoreLabel(fs)}.`);
+    return;
+  }
+  if (/\bstatus\b|health( check)?|overview|everything (ok|okay|alright|fine|good)|how('?s| is| are) (it|everything|things|we)( all)?( going| doing)?\??\s*$/.test(raw)) {
+    speakStatus();
+    return;
+  }
+
+  // ── Fuzzy fallback — nothing matched exactly; try keyword overlap
+  // against every known node's title/description instead of giving up ──
+  const words = subject.split(/\s+/).filter(w => w.length > 2);
+  let bestId = null, bestScore = 0;
+  for (const [id, info] of Object.entries(NODE_INFO)) {
+    const hay = (info.title + ' ' + info.sub).toLowerCase();
+    const score = words.reduce((n, w) => n + (hay.includes(w) ? 1 : 0), 0);
+    if (score > bestScore) { bestScore = score; bestId = id; }
+  }
+  if (bestId && bestScore > 0) {
+    openDetailPanel(bestId);
+    showVoiceFeedback(raw, `Closest match: ${NODE_INFO[bestId].title}. Showing it now.`);
+    return;
+  }
+
+  showVoiceFeedback(raw, `I didn't catch a command in that. Try "status", "show corpus", or say "help".`);
 }
 
 /* ══ API fetch + render ═══════════════════════════════════════ */
@@ -1468,6 +1596,8 @@ $('btn-voice').addEventListener('click', () => {
   startListening();
 });
 
+$('btn-reset-view').addEventListener('click', () => window.walcheResetView());
+
 $('dp-close').addEventListener('click', closeDetailPanel);
 
 $('dp-speak').addEventListener('click', () => {
@@ -1486,6 +1616,7 @@ $$('.node-group').forEach(g => {
 document.addEventListener('keydown', e => {
   if (e.key === 'v' || e.key === 'V') { if (!e.ctrlKey && !e.metaKey) startListening(); }
   if (e.key === 'r' || e.key === 'R') { if (!e.ctrlKey && !e.metaKey) { countdown=REFRESH_S; fetchAndRender(); } }
+  if (e.key === '0' || e.key === 'Home') window.walcheResetView();
   if (e.key === 'Escape') closeDetailPanel();
 });
 
