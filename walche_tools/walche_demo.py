@@ -22,8 +22,17 @@ from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Tuple
 
 # ── WALCHE root detection ─────────────────────────────────────────────────────
-ROOT   = Path(__file__).resolve().parent.parent   # walche_tools/../ = WALCHE root
-_tools = Path(__file__).resolve().parent          # walche_tools/ — used for imports
+# Handles both deployment layouts: walche_demo.py sitting at the WALCHE root
+# (the documented `python walche_demo.py` invocation) or inside walche_tools/
+# itself. Assuming only one layout silently misdirects logs/corpus paths one
+# directory level too high when the other is actually in use.
+_here = Path(__file__).resolve().parent
+if _here.name == "walche_tools":
+    ROOT   = _here.parent
+    _tools = _here
+else:
+    ROOT   = _here
+    _tools = _here / "walche_tools"
 if str(_tools) not in sys.path:
     sys.path.insert(0, str(_tools))
 
