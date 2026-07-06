@@ -23,3 +23,13 @@
 **/values.dev.yaml
 LICENSE
 README.md
+
+# This image only needs "Print Perfet/" — the rest of this repo (WALCHE
+# tooling/corpus data and the leaked-source TS tree) has no business being
+# shipped into the Print Perfect image, and PENDING_COMMANDS.md/CLAUDE.md
+# name a server address that shouldn't end up baked into a container layer.
+walche_tools/
+corpus/
+logs/
+PENDING_COMMANDS.md
+CLAUDE.md

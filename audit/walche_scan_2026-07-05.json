@@ -1,0 +1,302 @@
+{
+  "timestamp": "2026-07-05T02:30:10.392670+00:00",
+  "root": "/home/user/Anthropic-Leaked-Source-Code",
+  "totals": {
+    "critical": 4,
+    "high": 20,
+    "medium": 0,
+    "low": 0,
+    "total": 24
+  },
+  "test_stats": {
+    "run": 0,
+    "passed": 0,
+    "failed": 0
+  },
+  "loop_registry": {
+    "status": "UNKNOWN",
+    "count": 0,
+    "loops": [],
+    "connections": 0
+  },
+  "module_map": {
+    "core.config": {
+      "status": "FAIL",
+      "error": "No module named 'core'"
+    },
+    "core.meta_engine": {
+      "status": "FAIL",
+      "error": "No module named 'core'"
+    },
+    "core.healing_engine": {
+      "status": "FAIL",
+      "error": "No module named 'core'"
+    },
+    "core.guardrail": {
+      "status": "FAIL",
+      "error": "No module named 'core'"
+    },
+    "core.forensic_cognition": {
+      "status": "FAIL",
+      "error": "No module named 'core'"
+    },
+    "core.rubric": {
+      "status": "FAIL",
+      "error": "No module named 'core'"
+    },
+    "core.pain_fmea": {
+      "status": "FAIL",
+      "error": "No module named 'core'"
+    },
+    "core.pain_engine": {
+      "status": "FAIL",
+      "error": "No module named 'core'"
+    },
+    "core.loop_registry": {
+      "status": "FAIL",
+      "error": "No module named 'core'"
+    },
+    "core.provenance": {
+      "status": "FAIL",
+      "error": "No module named 'core'"
+    },
+    "core.pre_ingest_gate": {
+      "status": "FAIL",
+      "error": "No module named 'core'"
+    },
+    "core.vector_store": {
+      "status": "FAIL",
+      "error": "No module named 'core'"
+    },
+    "core.orchestrator": {
+      "status": "FAIL",
+      "error": "No module named 'core'"
+    },
+    "core.spine_guardian": {
+      "status": "FAIL",
+      "error": "No module named 'core'"
+    },
+    "core.vll": {
+      "status": "FAIL",
+      "error": "No module named 'core'"
+    },
+    "core.nine_step": {
+      "status": "FAIL",
+      "error": "No module named 'core'"
+    },
+    "core.routing_cache": {
+      "status": "FAIL",
+      "error": "No module named 'core'"
+    },
+    "core.structure_feedback": {
+      "status": "FAIL",
+      "error": "No module named 'core'"
+    },
+    "core.connection_monitor": {
+      "status": "FAIL",
+      "error": "No module named 'core'"
+    },
+    "core.grok_monitor": {
+      "status": "FAIL",
+      "error": "No module named 'core'"
+    },
+    "backend.memory.reflection_memory": {
+      "status": "FAIL",
+      "error": "No module named 'backend'"
+    }
+  },
+  "issues": [
+    {
+      "category": "IMPORT",
+      "severity": "CRITICAL",
+      "file": "core/healing_engine.py",
+      "line": 0,
+      "message": "Cannot import core.healing_engine.HealingEngine: No module named 'core'",
+      "suggestion": "Check file exists and has no internal import errors"
+    },
+    {
+      "category": "IMPORT",
+      "severity": "CRITICAL",
+      "file": "core/meta_engine.py",
+      "line": 0,
+      "message": "Cannot import core.meta_engine.MetaEngine: No module named 'core'",
+      "suggestion": "Check file exists and has no internal import errors"
+    },
+    {
+      "category": "LOOP",
+      "severity": "CRITICAL",
+      "file": "core/loop_registry.py",
+      "line": 0,
+      "message": "loop_registry not importable: No module named 'core'",
+      "suggestion": "Ensure core/loop_registry.py exists and is error-free"
+    },
+    {
+      "category": "PREFLIGHT",
+      "severity": "CRITICAL",
+      "file": "core/",
+      "line": 0,
+      "message": "/home/user/Anthropic-Leaked-Source-Code/core/ directory is missing \u2014 all core.* module checks (S2, S3, S6, S8, S9) will report failures with this as the root cause, not a defect in any individual module",
+      "suggestion": "Copy the WALCHE core/ package into this repo, or run this scan against the WALCHE root that actually contains it"
+    },
+    {
+      "category": "CONFIG",
+      "severity": "HIGH",
+      "file": "core/config.py",
+      "line": 0,
+      "message": "WalcheConfig not importable: No module named 'core'",
+      "suggestion": ""
+    },
+    {
+      "category": "IMPORT",
+      "severity": "HIGH",
+      "file": "backend/memory/reflection_memory.py",
+      "line": 0,
+      "message": "Cannot import backend.memory.reflection_memory.PersistentReflectionMemory: No module named 'backend'",
+      "suggestion": "Check file exists and has no internal import errors"
+    },
+    {
+      "category": "IMPORT",
+      "severity": "HIGH",
+      "file": "core/config.py",
+      "line": 0,
+      "message": "Cannot import core.config.WalcheConfig: No module named 'core'",
+      "suggestion": "Check file exists and has no internal import errors"
+    },
+    {
+      "category": "IMPORT",
+      "severity": "HIGH",
+      "file": "core/connection_monitor.py",
+      "line": 0,
+      "message": "Cannot import core.connection_monitor: No module named 'core'",
+      "suggestion": "Check file exists and has no internal import errors"
+    },
+    {
+      "category": "IMPORT",
+      "severity": "HIGH",
+      "file": "core/forensic_cognition.py",
+      "line": 0,
+      "message": "Cannot import core.forensic_cognition: No module named 'core'",
+      "suggestion": "Check file exists and has no internal import errors"
+    },
+    {
+      "category": "IMPORT",
+      "severity": "HIGH",
+      "file": "core/grok_monitor.py",
+      "line": 0,
+      "message": "Cannot import core.grok_monitor: No module named 'core'",
+      "suggestion": "Check file exists and has no internal import errors"
+    },
+    {
+      "category": "IMPORT",
+      "severity": "HIGH",
+      "file": "core/guardrail.py",
+      "line": 0,
+      "message": "Cannot import core.guardrail.Guardrail: No module named 'core'",
+      "suggestion": "Check file exists and has no internal import errors"
+    },
+    {
+      "category": "IMPORT",
+      "severity": "HIGH",
+      "file": "core/loop_registry.py",
+      "line": 0,
+      "message": "Cannot import core.loop_registry: No module named 'core'",
+      "suggestion": "Check file exists and has no internal import errors"
+    },
+    {
+      "category": "IMPORT",
+      "severity": "HIGH",
+      "file": "core/nine_step.py",
+      "line": 0,
+      "message": "Cannot import core.nine_step: No module named 'core'",
+      "suggestion": "Check file exists and has no internal import errors"
+    },
+    {
+      "category": "IMPORT",
+      "severity": "HIGH",
+      "file": "core/orchestrator.py",
+      "line": 0,
+      "message": "Cannot import core.orchestrator: No module named 'core'",
+      "suggestion": "Check file exists and has no internal import errors"
+    },
+    {
+      "category": "IMPORT",
+      "severity": "HIGH",
+      "file": "core/pain_engine.py",
+      "line": 0,
+      "message": "Cannot import core.pain_engine: No module named 'core'",
+      "suggestion": "Check file exists and has no internal import errors"
+    },
+    {
+      "category": "IMPORT",
+      "severity": "HIGH",
+      "file": "core/pain_fmea.py",
+      "line": 0,
+      "message": "Cannot import core.pain_fmea.PAINFMEA: No module named 'core'",
+      "suggestion": "Check file exists and has no internal import errors"
+    },
+    {
+      "category": "IMPORT",
+      "severity": "HIGH",
+      "file": "core/pre_ingest_gate.py",
+      "line": 0,
+      "message": "Cannot import core.pre_ingest_gate: No module named 'core'",
+      "suggestion": "Check file exists and has no internal import errors"
+    },
+    {
+      "category": "IMPORT",
+      "severity": "HIGH",
+      "file": "core/provenance.py",
+      "line": 0,
+      "message": "Cannot import core.provenance: No module named 'core'",
+      "suggestion": "Check file exists and has no internal import errors"
+    },
+    {
+      "category": "IMPORT",
+      "severity": "HIGH",
+      "file": "core/routing_cache.py",
+      "line": 0,
+      "message": "Cannot import core.routing_cache: No module named 'core'",
+      "suggestion": "Check file exists and has no internal import errors"
+    },
+    {
+      "category": "IMPORT",
+      "severity": "HIGH",
+      "file": "core/rubric.py",
+      "line": 0,
+      "message": "Cannot import core.rubric.RubricScorer: No module named 'core'",
+      "suggestion": "Check file exists and has no internal import errors"
+    },
+    {
+      "category": "IMPORT",
+      "severity": "HIGH",
+      "file": "core/spine_guardian.py",
+      "line": 0,
+      "message": "Cannot import core.spine_guardian: No module named 'core'",
+      "suggestion": "Check file exists and has no internal import errors"
+    },
+    {
+      "category": "IMPORT",
+      "severity": "HIGH",
+      "file": "core/structure_feedback.py",
+      "line": 0,
+      "message": "Cannot import core.structure_feedback: No module named 'core'",
+      "suggestion": "Check file exists and has no internal import errors"
+    },
+    {
+      "category": "IMPORT",
+      "severity": "HIGH",
+      "file": "core/vector_store.py",
+      "line": 0,
+      "message": "Cannot import core.vector_store: No module named 'core'",
+      "suggestion": "Check file exists and has no internal import errors"
+    },
+    {
+      "category": "IMPORT",
+      "severity": "HIGH",
+      "file": "core/vll.py",
+      "line": 0,
+      "message": "Cannot import core.vll: No module named 'core'",
+      "suggestion": "Check file exists and has no internal import errors"
+    }
+  ]
+}

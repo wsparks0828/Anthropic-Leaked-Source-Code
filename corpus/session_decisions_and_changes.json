@@ -1,0 +1,214 @@
+{
+  "meta": {
+    "title": "WALCHE Session — Code Changes, Audits, Tests, and Decision Rationale",
+    "extracted": "2026-07-03",
+    "session_id": "cfae50a5-2040-59ef-b236-2a1f5bb23514",
+    "purpose": "Full provenance record: what changed, why it changed, what was tested, what passed/failed"
+  },
+
+  "files_written": [
+    {
+      "file": "scratchpad/reflection_memory.py",
+      "size_chars": 838,
+      "purpose": "PersistentReflectionMemory stub for ChromaDB-backed healing memory"
+    },
+    {
+      "file": "scratchpad/langgraph_healing_graph.py",
+      "size_chars": 5340,
+      "purpose": "LangGraph StateGraph wiring for WALCHE healing loop — routes between diagnose, heal, validate nodes"
+    },
+    {
+      "file": "scratchpad/ppo_recovery_agent.py",
+      "size_chars": 1956,
+      "purpose": "PPO reinforcement learning recovery agent — learns from WALCHE failure signals"
+    },
+    {
+      "file": "scratchpad/healing_agent.py",
+      "size_chars": 3412,
+      "purpose": "NeuroSymbolicHealingAgent — combines symbolic rules with neural healing proposals"
+    },
+    {
+      "file": "scratchpad/train_and_integrate_healing_system.py",
+      "size_chars": 2865,
+      "purpose": "Training harness — integrates PPO agent with healing loop, runs episodes"
+    },
+    {
+      "file": "scratchpad/fix_walche.py",
+      "size_chars": 18885,
+      "purpose": "Auto-fix deployment script — writes all backend self-healing components in one shot"
+    },
+    {
+      "file": "scratchpad/loop_audit.py",
+      "size_chars": 21690,
+      "purpose": "Primary audit tool — C0-C12 architectural checks + L1-L5 learning checks with WALCHE-native GO/NO-GO verdict"
+    },
+    {
+      "file": "scratchpad/walche_validate.py",
+      "size_chars": 7864,
+      "purpose": "Deeper per-module validation — rubric scoring, PAIN FMEA RPN, healing proposals per ESTC2 module"
+    },
+    {
+      "file": "scratchpad/walche_apply.py",
+      "size_chars": 8170,
+      "purpose": "Persona-led apply — writes advisory + audit log + WALCHE provenance trail per change"
+    },
+    {
+      "file": "scratchpad/walche_deep_scan.py",
+      "size_chars": 25381,
+      "purpose": "Full platform scan — S1-S11 covering syntax, imports, interfaces, AST bugs, EPM contamination, circular imports, config, test gaps, orphan scripts"
+    },
+    {
+      "file": "CLAUDE.md",
+      "size_chars": 7599,
+      "purpose": "Constitutional law file — 11 laws governing all Claude sessions cross-platform. Loads at session start automatically."
+    },
+    {
+      "file": "corpus/session_log.jsonl",
+      "size_chars": 441,
+      "purpose": "Live session tracking per Law 9 — appended each session"
+    },
+    {
+      "file": "corpus/initial_corpus_intelligence.json",
+      "size_chars": 7744,
+      "purpose": "First ingestion corpus — 89 URLs, 8 WALCHE modules, 26 classes, 23 construction sources mined from transcript"
+    }
+  ],
+
+  "code_alterations_with_rationale": [
+    {
+      "file": "loop_audit.py",
+      "change": "loops.loop_registry → core.loop_registry",
+      "why": "Initial code assumed WALCHE had a separate loops/ directory. Confirmed the loop registry lives in core/, not loops/. Incorrect path would cause C2 and C7 checks to always fail even on a healthy WALCHE install."
+    },
+    {
+      "file": "loop_audit.py",
+      "change": "ReflectionMemory → PersistentReflectionMemory",
+      "why": "Wrong class name. The actual class in backend/memory/reflection_memory.py is PersistentReflectionMemory, not ReflectionMemory. Mismatch would cause C4 memory check to report false failures."
+    },
+    {
+      "file": "loop_audit.py",
+      "change": "core.rubric_scorer.RubricScorer → core.rubric.RubricScorer (with Rubric fallback)",
+      "why": "The module is core/rubric.py, not core/rubric_scorer.py. Also added fallback to try class name Rubric if RubricScorer not found, since WALCHE may use either. Makes C5 check more resilient."
+    },
+    {
+      "file": "loop_audit.py",
+      "change": "core.forensic_logger → core.forensic_cognition",
+      "why": "Actual WALCHE module is forensic_cognition, not forensic_logger. Wrong name would cause C6 forensic logging check to always report unavailable."
+    },
+    {
+      "file": "loop_audit.py",
+      "change": "Removed loops/ from architecture health directory check",
+      "why": "loops/ does not exist as a standalone directory in WALCHE. Loop infrastructure lives in core/. Including it in C11 arch health check would cause false WARN on every healthy WALCHE install."
+    },
+    {
+      "file": "loop_audit.py",
+      "change": "core.provenance_log → core.provenance",
+      "why": "Module name correction. Actual module is core/provenance.py. C10 check would always fail with wrong name."
+    },
+    {
+      "file": "loop_audit.py",
+      "change": "C7 loop integration — changed from scanning loops/ dir to checking core loop modules directly",
+      "why": "Loop modules (pain_engine, pain_fmea, healing_engine, spine_guardian, orchestrator, vll) all live in core/. Scanning a non-existent loops/ directory would give misleading results."
+    },
+    {
+      "file": "loop_audit.py",
+      "change": "Import target alignment — added core.guardrail.Guardrail and core.forensic_cognition to C1",
+      "why": "These are critical WALCHE modules. Guardrail is a hard requirement for safe operation. forensic_cognition provides audit trail. Both needed in C1 import check for accurate baseline."
+    }
+  ],
+
+  "git_commits": [
+    {
+      "commit": "Add WALCHE diagnostic and apply tools",
+      "what": "Five standalone Python tools committed to walche_tools/: loop_audit.py, walche_deep_scan.py, walche_validate.py, walche_apply.py, fix_walche.py",
+      "why": "Needed a complete, runnable diagnostic suite that works against the live WALCHE install without modifying WALCHE core. Tools operate as external diagnostic layer."
+    },
+    {
+      "commit": "Add constitutional CLAUDE.md and corpus log",
+      "what": "CLAUDE.md with 11 constitutional laws, corpus/session_log.jsonl initialized",
+      "why": "CLAUDE.md is the persistent memory and constraint layer. Without it every session starts blind. 11 laws encode the operating contract between user and Claude across all platforms and sessions."
+    },
+    {
+      "commit": "Add initial corpus intelligence from full session transcript",
+      "what": "corpus/initial_corpus_intelligence.json with 89 URLs, 8 WALCHE modules, 23 construction sources, 11 research papers",
+      "why": "First ingestion baseline. All prior session knowledge captured in structured form so future WALCHE intelligence can be seeded from real work history, not cold start."
+    }
+  ],
+
+  "user_requests_and_intent": [
+    "open and import ALL files so we can see if there is anything else needing to be completed",
+    "look for WACHLE or WACHEL [initial name confusion, resolved to WALCHE]",
+    "no its a agent platform I completed this morning",
+    "look under Remember layered scans",
+    "remote control stopped working and I cant get it running again",
+    "here is the latest code and first run failed. deep dive into this",
+    "dont know tell me everything thats wrong, missing, and caused all failure",
+    "can you fix it?",
+    "how about you give me a single paste code that will automatically do this",
+    "Constitutional Laws Across ALL Claude Platforms [11 laws dictated]",
+    "we really need to acquire all the past information accessed for the corpus log this way we have a good first ingestion and intelligence building integration",
+    "does this also include all the audits, testing and current code alterations made including why the alterations were made?"
+  ],
+
+  "audits_and_tests": {
+    "loop_audit_checks": {
+      "C0": "Syntax Check — all .py files compile OK",
+      "C1": "Core Imports — verify MetaEngine, HealingEngine, Guardrail, forensic_cognition, rubric import",
+      "C2": "Loop Registry — LoopRegistry loads and reports >= 1 registered loop",
+      "C3": "Prompt Validation — prompt files exist and PromptManager importable",
+      "C4": "Memory System — PersistentReflectionMemory instantiates",
+      "C5": "Rubric Scorer — RubricScorer/Rubric has score()/evaluate() method",
+      "C6": "Forensic Logging — forensic_cognition importable, logs/ dir writable",
+      "C7": "Loop Integration — loop_registry + pain_engine, pain_fmea, healing_engine, spine_guardian, orchestrator, vll all importable",
+      "C8": "Guardrail Interface — Guardrail has check() or evaluate() method",
+      "C9": "Self-Tests — runs test_*.py files, reports pass rate",
+      "C10": "Provenance Log — core.provenance or backend.provenance_log importable",
+      "C11": "Architecture Health — core/, tools/, backend/ exist, venv present, >= 5 .py files",
+      "C12": "WALCHE Judgment — MetaEngine + PAIN FMEA + HealingEngine produce GO/GO-WITH-CONDITIONS/NO-GO",
+      "L1-L5": "Learning checks — DEFERRED (no production corpus yet)"
+    },
+    "deep_scan_checks": {
+      "S1": "Syntax — py_compile all files",
+      "S2": "Imports — 20 core modules checked",
+      "S3": "Interface validation — method presence on MetaEngine, HealingEngine, Guardrail, RubricScorer, PAINFMEA, PreIngestGate",
+      "S4": "AST bug detection — bare except, mutable defaults, assert tuple, None comparison",
+      "S5": "EPM contamination — EPM-STARK, WOM-STARK, hardcoded EPM paths inside WALCHE",
+      "S6": "Loop registry — expects 18 loops, 42 connections",
+      "S7": "Circular import detection — DFS graph traversal",
+      "S8": "Config validation — WalcheConfig has dry_run, light_mode, max_history",
+      "S9": "Test coverage gaps — core modules without test files",
+      "S10": "Orphan scripts — root-level scripts not imported anywhere",
+      "S11": "Self-tests — pytest run on discovered test files"
+    }
+  },
+
+  "known_walche_state": {
+    "install_path": "C:\\Users\\wspar\\Desktop\\WALCHE_FULL_20260630_214341",
+    "packages_confirmed_installed": [
+      "anthropic 0.34.2",
+      "chromadb",
+      "langgraph",
+      "stable_baselines3",
+      "openai"
+    ],
+    "first_run_result": "FAILED — multiple import errors on core modules",
+    "root_causes_identified": [
+      "Wrong module paths in diagnostic tools (loops/ vs core/)",
+      "Wrong class names (ReflectionMemory vs PersistentReflectionMemory)",
+      "Wrong module names (rubric_scorer vs rubric, forensic_logger vs forensic_cognition)",
+      "Assumed loops/ directory that does not exist"
+    ],
+    "status_after_fixes": "Tools corrected and committed — ready to run against live WALCHE install"
+  },
+
+  "summary": {
+    "files_written": 13,
+    "files_edited": 8,
+    "code_alterations_documented": 8,
+    "git_commits": 3,
+    "user_intents_captured": 12,
+    "audit_checks_defined": 18,
+    "bash_commands_total": 33,
+    "walche_specific_bash": 16
+  }
+}

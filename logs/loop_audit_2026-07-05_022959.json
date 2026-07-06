@@ -1,0 +1,153 @@
+{
+  "lineage_id": "WALCHE-AUDIT-2026-07-05",
+  "timestamp": "2026-07-05T02:29:59.298899+00:00",
+  "checks": [
+    {
+      "id": "C0",
+      "name": "Syntax Check",
+      "status": "PASS",
+      "severity": "INFO",
+      "notes": "All .py files compile OK",
+      "score": 1.0
+    },
+    {
+      "id": "C1",
+      "name": "Core Imports",
+      "status": "WARN",
+      "severity": "HIGH",
+      "notes": "core.meta_engine: No module named 'core'; core.healing_engine: No module named 'core'; core.guardrail: No module named 'core'; core.forensic_cognition: No module named 'core'; core.rubric: No module named 'core'",
+      "score": 0.3
+    },
+    {
+      "id": "C2",
+      "name": "Loop Registry",
+      "status": "FAIL",
+      "severity": "HIGH",
+      "notes": "Import failed: No module named 'core'",
+      "score": 0.0
+    },
+    {
+      "id": "C3",
+      "name": "Prompt Validation",
+      "status": "WARN",
+      "severity": "LOW",
+      "notes": "No prompt files found in expected directories",
+      "score": 0.7
+    },
+    {
+      "id": "C4",
+      "name": "Memory System",
+      "status": "WARN",
+      "severity": "MEDIUM",
+      "notes": "Memory module not importable: No module named 'backend'",
+      "score": 0.5
+    },
+    {
+      "id": "C5",
+      "name": "Rubric Scorer",
+      "status": "FAIL",
+      "severity": "HIGH",
+      "notes": "Import failed: No module named 'core'",
+      "score": 0.0
+    },
+    {
+      "id": "C6",
+      "name": "Forensic Logging",
+      "status": "WARN",
+      "severity": "MEDIUM",
+      "notes": "ForensicLogger not found: No module named 'core'",
+      "score": 0.5
+    },
+    {
+      "id": "C7",
+      "name": "Loop Integration",
+      "status": "FAIL",
+      "severity": "HIGH",
+      "notes": "core.loop_registry not importable: No module named 'core'",
+      "score": 0.0
+    },
+    {
+      "id": "C8",
+      "name": "Guardrail Interface",
+      "status": "FAIL",
+      "severity": "HIGH",
+      "notes": "Import failed: No module named 'core'",
+      "score": 0.0
+    },
+    {
+      "id": "C9",
+      "name": "Self-Tests",
+      "status": "SKIP",
+      "severity": "LOW",
+      "notes": "No test files found",
+      "score": 1.0
+    },
+    {
+      "id": "C10",
+      "name": "Provenance Log",
+      "status": "WARN",
+      "severity": "MEDIUM",
+      "notes": "Provenance module not importable: No module named 'core'",
+      "score": 0.5
+    },
+    {
+      "id": "C11",
+      "name": "Architecture Health",
+      "status": "WARN",
+      "severity": "MEDIUM",
+      "notes": "missing core/; missing backend/; venv not found",
+      "score": 0.55
+    },
+    {
+      "id": "C12",
+      "name": "WALCHE Judgment",
+      "status": "FAIL",
+      "severity": "CRITICAL",
+      "notes": "Verdict:NO-GO|MetaEngine:unavailable|PAIN_FMEA:HIGH_FAIL:['C2', 'C5', 'C7', 'C8']|COMPOSITE_LOW:0.37|HealingEngine:unavailable",
+      "score": 0.0
+    },
+    {
+      "id": "L1",
+      "name": "Corpus Ingestion",
+      "status": "DEFERRED",
+      "severity": "INFO",
+      "notes": "No production corpus — deferred until corpus available",
+      "score": 1.0
+    },
+    {
+      "id": "L2",
+      "name": "Schema Alignment",
+      "status": "DEFERRED",
+      "severity": "INFO",
+      "notes": "No production corpus — deferred until corpus available",
+      "score": 1.0
+    },
+    {
+      "id": "L3",
+      "name": "Loop Signal Quality",
+      "status": "DEFERRED",
+      "severity": "INFO",
+      "notes": "No production corpus — deferred until corpus available",
+      "score": 1.0
+    },
+    {
+      "id": "L4",
+      "name": "Reinforcement Health",
+      "status": "DEFERRED",
+      "severity": "INFO",
+      "notes": "No production corpus — deferred until corpus available",
+      "score": 1.0
+    },
+    {
+      "id": "L5",
+      "name": "Emergent Pattern Integrity",
+      "status": "DEFERRED",
+      "severity": "INFO",
+      "notes": "No production corpus — deferred until corpus available",
+      "score": 1.0
+    }
+  ],
+  "overall_status": "NO-GO",
+  "composite_score": 0.36818181818181817,
+  "c12_verdict": "NO-GO"
+}
